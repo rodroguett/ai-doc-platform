@@ -1,0 +1,6 @@
+bin/
+*.env
+.env.local
+coverage.out
+.DS_Store
+.idea/
