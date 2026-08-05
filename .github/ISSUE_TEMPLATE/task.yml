@@ -1,0 +1,57 @@
+name: Tarea
+description: Unidad de trabajo con alcance acotado
+labels: ["task"]
+body:
+  - type: dropdown
+    id: service
+    attributes:
+      label: Servicio
+      options:
+        - gateway
+        - llmgw
+        - rag
+        - orchestrator
+        - platform
+        - infra
+        - docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Objetivo
+      description: Qué debe poder hacer el sistema cuando esto esté terminado.
+      placeholder: El gateway acepta consultas y devuelve una respuesta con citas.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Condiciones verificables. Si no se puede verificar, no es criterio.
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] Tests cubren el comportamiento
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notas técnicas
+      description: Restricciones, dependencias con otros issues, alternativas ya descartadas.
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Tamaño estimado
+      description: Si es L, probablemente conviene dividirlo.
+      options:
+        - S (una sesión)
+        - M (dos o tres sesiones)
+        - L (dividir)
+    validations:
+      required: true
