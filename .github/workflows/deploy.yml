@@ -1,0 +1,67 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-gateway
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  SERVICE: gateway
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure docker for artifact registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        env:
+          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/containers/${{ env.SERVICE }}
+        run: |
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      - id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ vars.GCP_REGION }}
+          image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/containers/${{ env.SERVICE }}:${{ github.sha }}
+          flags: >-
+            --allow-unauthenticated
+            --min-instances=0
+            --max-instances=3
+            --memory=256Mi
+            --cpu=1
+            --port=8080
+            --timeout=30s
+
+      - name: Smoke test
+        run: |
+          for i in {1..5}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.url }}/healthz")
+            [ "$code" = "200" ] && echo "healthy at ${{ steps.deploy.outputs.url }}" && exit 0
+            echo "attempt $i returned $code, retrying"
+            sleep 5
+          done
+          exit 1
