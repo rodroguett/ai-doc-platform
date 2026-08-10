@@ -8,7 +8,7 @@ import (
 
 func TestHealthEndpoint(t *testing.T) {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
 	NewServer().ServeHTTP(rec, req)
 

@@ -21,7 +21,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("/healthz", s.handleHealth)
+	s.mux.HandleFunc("/health", s.handleHealth)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
