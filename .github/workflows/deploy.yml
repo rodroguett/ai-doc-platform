@@ -59,7 +59,7 @@ jobs:
       - name: Smoke test
         run: |
           for i in {1..5}; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.url }}/healthz")
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.url }}/health")
             [ "$code" = "200" ] && echo "healthy at ${{ steps.deploy.outputs.url }}" && exit 0
             echo "attempt $i returned $code, retrying"
             sleep 5
