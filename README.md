@@ -138,6 +138,7 @@ negativas de cada decisión. Un registro donde todas las decisiones salieron
 bien no es un registro, es publicidad.
 
 - [ADR-0001](docs/adr/0001-monorepo.md) — Alojar todos los servicios en un monorepo
+- [ADR-0002](docs/adr/0002-tool-versions.md) — Fijar versiones exactas de las herramientas de desarrollo
 
 ## Contribuir
 
