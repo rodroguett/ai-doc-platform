@@ -1,4 +1,4 @@
-.PHONY: run test lint build tidy
+.PHONY: run test lint build tidy bootstrap
 
 run:
 	go run ./cmd/gateway
@@ -14,3 +14,6 @@ build:
 
 tidy:
 	go mod tidy
+
+bootstrap:
+	./scripts/bootstrap.sh
