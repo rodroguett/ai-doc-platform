@@ -145,3 +145,12 @@ bien no es un registro, es publicidad.
 
 El flujo de trabajo, la convención de commits y la definición de terminado
 están en [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Ejecución local
+
+Para configurar un entorno nuevo con las versiones de herramientas que el
+proyecto declara:
+
+```bash
+./scripts/bootstrap.sh
+```
