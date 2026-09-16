@@ -1,0 +1,461 @@
+openapi: 3.1.0
+
+info:
+  title: Plataforma de consulta documental
+  version: 1.0.0
+  description: |
+    API de consulta semántica sobre corpus documentales, con generación
+    de respuestas asistida por LLM y trazabilidad de la fuente.
+
+    Toda respuesta generada incluye las citas al documento origen y una
+    traza de ejecución con proveedor, costo y latencia.
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.example.cl/v1
+    description: Producción
+  - url: http://localhost:8080/v1
+    description: Local
+
+tags:
+  - name: queries
+    description: Consultas semánticas
+  - name: documents
+    description: Ingesta y gestión del corpus
+  - name: jobs
+    description: Estado de trabajos asíncronos
+  - name: usage
+    description: Consumo y costos
+
+paths:
+  /queries:
+    post:
+      tags: [queries]
+      summary: Ejecuta una consulta semántica
+      operationId: createQuery
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Respuesta generada
+          headers:
+            X-Trace-Id:
+              schema: { type: string }
+              description: Identificador de traza distribuida
+            X-RateLimit-Remaining:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /documents:
+    get:
+      tags: [documents]
+      summary: Lista documentos del corpus
+      operationId: listDocuments
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: collection
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Página de documentos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      tags: [documents]
+      summary: Registra un documento para ingesta
+      description: |
+        Encola el documento para chunking y generación de embeddings.
+        El procesamiento es asíncrono: use el job devuelto para seguir el avance.
+      operationId: createDocument
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, collection]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                collection:
+                  type: string
+                  examples: ['rca']
+                metadata:
+                  type: string
+                  description: JSON con metadatos libres del documento
+      responses:
+        '202':
+          description: Documento aceptado para procesamiento
+          headers:
+            Location:
+              schema: { type: string, format: uri }
+              description: URL del job de ingesta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413':
+          description: Archivo excede el tamaño máximo
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /documents/{documentId}:
+    parameters:
+      - name: documentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [documents]
+      summary: Obtiene un documento
+      operationId: getDocument
+      responses:
+        '200':
+          description: Documento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [documents]
+      summary: Elimina un documento y sus chunks
+      operationId: deleteDocument
+      responses:
+        '204':
+          description: Eliminado
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /jobs/{jobId}:
+    parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [jobs]
+      summary: Consulta el estado de un trabajo asíncrono
+      operationId: getJob
+      responses:
+        '200':
+          description: Estado del trabajo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /usage:
+    get:
+      tags: [usage]
+      summary: Consumo agregado del periodo
+      operationId: getUsage
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Consumo del periodo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usage'
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Clave única del cliente. Reintentos con la misma clave devuelven
+        la respuesta original en lugar de ejecutar la operación de nuevo.
+      schema: { type: string, maxLength: 128 }
+
+    Cursor:
+      name: cursor
+      in: query
+      description: Cursor opaco devuelto en la página anterior
+      schema: { type: string }
+
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  schemas:
+
+    QueryRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+          minLength: 3
+          maxLength: 2000
+        collection:
+          type: string
+          description: Restringe la búsqueda a una colección
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+        filters:
+          type: object
+          additionalProperties: true
+          description: Filtros sobre los metadatos del documento
+        trace:
+          type: string
+          enum: [summary, full]
+          default: summary
+
+    QueryResponse:
+      type: object
+      required: [query_id, answer, citations, trace]
+      properties:
+        query_id:
+          type: string
+          format: uuid
+        answer:
+          type: string
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/Citation' }
+        trace:
+          $ref: '#/components/schemas/Trace'
+
+    Citation:
+      type: object
+      required: [chunk_id, document_id, source, score]
+      properties:
+        chunk_id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        source:
+          type: string
+          description: Nombre legible del documento
+          examples: ['RCA 042/2019']
+        locator:
+          type: string
+          description: Ubicación dentro del documento
+          examples: ['considerando 7.3']
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        excerpt:
+          type: string
+          description: Fragmento recuperado que sustenta la respuesta
+
+    Trace:
+      type: object
+      required: [trace_id, provider, model, cache, latency_ms]
+      properties:
+        trace_id:
+          type: string
+          description: Identificador OpenTelemetry
+        provider:
+          type: string
+          examples: ['ollama']
+        model:
+          type: string
+        cache:
+          type: string
+          enum: [hit, miss, bypass]
+        degraded:
+          type: boolean
+          description: Verdadero si se respondió por fallback
+          default: false
+        tokens:
+          type: object
+          properties:
+            prompt: { type: integer }
+            completion: { type: integer }
+        cost_usd:
+          type: number
+          format: float
+        latency_ms:
+          type: object
+          properties:
+            total: { type: integer }
+            retrieval: { type: integer }
+            generation: { type: integer }
+        retrieved:
+          type: array
+          description: Solo presente con trace=full
+          items:
+            type: object
+            properties:
+              chunk_id: { type: string, format: uuid }
+              score: { type: number, format: float }
+              rank: { type: integer }
+
+    Document:
+      type: object
+      required: [id, source, collection, status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        source: { type: string }
+        collection: { type: string }
+        status:
+          type: string
+          enum: [pending, processing, ready, failed]
+        chunk_count: { type: integer }
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at: { type: string, format: date-time }
+
+    DocumentPage:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Document' }
+        next_cursor:
+          type: [string, 'null']
+          description: Nulo cuando no hay más páginas
+
+    Job:
+      type: object
+      required: [id, type, status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [ingest]
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        resource_id:
+          type: string
+          format: uuid
+          description: Documento resultante, una vez completado
+        error:
+          type: [string, 'null']
+        created_at: { type: string, format: date-time }
+
+    Usage:
+      type: object
+      properties:
+        period_start: { type: string, format: date }
+        period_end: { type: string, format: date }
+        queries: { type: integer }
+        cache_hit_rate: { type: number, format: float }
+        tokens_total: { type: integer }
+        cost_usd: { type: number, format: float }
+        by_provider:
+          type: array
+          items:
+            type: object
+            properties:
+              provider: { type: string }
+              queries: { type: integer }
+              cost_usd: { type: number, format: float }
+
+    Problem:
+      type: object
+      description: Error conforme a RFC 9457
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          examples: ['https://api.example.cl/problems/validation-error']
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        trace_id: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Credenciales ausentes o inválidas
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Conflicto con el estado actual del recurso
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Límite de solicitudes excedido
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: Sin proveedor de generación disponible
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+security:
+  - bearerAuth: []
