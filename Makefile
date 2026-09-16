@@ -1,4 +1,4 @@
-.PHONY: run test lint build tidy bootstrap
+.PHONY: run test lint build tidy bootstrap generate
 
 run:
 	go run ./cmd/gateway
@@ -17,3 +17,5 @@ tidy:
 
 bootstrap:
 	./scripts/bootstrap.sh
+generate:
+	oapi-codegen -config api/codegen.yaml api/openapi.yaml

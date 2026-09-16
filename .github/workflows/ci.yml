@@ -26,6 +26,13 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Verify generated code is up to date
+        run: |
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+          oapi-codegen -config api/codegen.yaml api/openapi.yaml
+          git diff --exit-code internal/gateway/api/openapi_gen.go \
+            || (echo "El código generado no está sincronizado con el spec. Ejecute 'make generate'." && exit 1)
+
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
