@@ -116,6 +116,28 @@ install_golangci_lint() {
   ok "golangci-lint $want instalado"
 }
 
+install_oapi_codegen() {
+  local want current
+  want="$(tool_version oapi-codegen)"
+
+  export PATH="${GO_INSTALL_DIR}/bin:${GOBIN}:${PATH}"
+
+  if command -v oapi-codegen >/dev/null 2>&1; then
+    current="$(oapi-codegen --version 2>/dev/null | tail -1 | sed 's/^v//')" || current=""
+    if [ "$current" = "$want" ]; then
+      ok "oapi-codegen $want"
+      return
+    fi
+    info "oapi-codegen $current instalado, se requiere $want"
+  else
+    info "oapi-codegen no encontrado, instalando $want"
+  fi
+
+  go install "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v${want}" \
+    || fail "no se pudo instalar oapi-codegen v${want}"
+  ok "oapi-codegen $want instalado"
+}
+
 configure_path() {
   local line='export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH'
   local shell_rc="${HOME}/.bashrc"
@@ -152,6 +174,13 @@ verify() {
     failed=1
   fi
 
+  want="$(tool_version oapi-codegen)"
+  current="$(oapi-codegen --version 2>/dev/null | tail -1 | sed 's/^v//')" || current="ausente"
+  if [ "$current" != "$want" ]; then
+    warn "oapi-codegen: se esperaba $want, se encontró $current"
+    failed=1
+  fi
+
   [ "$failed" -eq 0 ] || fail "la verificación no pasó"
   ok "todas las herramientas en la versión declarada"
 }
@@ -161,6 +190,7 @@ main() {
   check_prerequisites
   install_go
   install_golangci_lint
+  install_oapi_codegen
   configure_path
   verify
   info "listo. verifique el proyecto con: make test && make lint"
