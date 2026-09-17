@@ -80,7 +80,6 @@ install_go() {
   local tarball="go${want}.linux-${arch}.tar.gz"
   local tmp
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
 
   info "descargando $tarball"
   curl -fsSL "https://go.dev/dl/${tarball}" -o "${tmp}/${tarball}" \
@@ -88,6 +87,7 @@ install_go() {
 
   sudo rm -rf "$GO_INSTALL_DIR"
   sudo tar -C "$(dirname "$GO_INSTALL_DIR")" -xzf "${tmp}/${tarball}"
+  rm -rf "$tmp"
 
   export PATH="${GO_INSTALL_DIR}/bin:${GOBIN}:${PATH}"
   hash -r
@@ -95,18 +95,25 @@ install_go() {
 }
 
 install_golangci_lint() {
-  local want current
+  local want current built_with
   want="$(tool_version golangci-lint)"
 
   export PATH="${GO_INSTALL_DIR}/bin:${GOBIN}:${PATH}"
 
   if command -v golangci-lint >/dev/null 2>&1; then
     current="$(golangci-lint --version 2>/dev/null | awk '{print $4}')" || current=""
-    if [ "$current" = "$want" ]; then
+    built_with="$(golangci-lint --version 2>/dev/null | grep -o 'go1\.[0-9.]*' | head -1 | sed 's/^go//')" || built_with=""
+
+    if [ "$current" = "$want" ] && [ "$built_with" = "$(tool_version golang)" ]; then
       ok "golangci-lint $want"
       return
     fi
-    info "golangci-lint $current instalado, se requiere $want"
+
+    if [ "$current" = "$want" ]; then
+      info "golangci-lint $want compilado con go $built_with, se requiere go $(tool_version golang)"
+    else
+      info "golangci-lint $current instalado, se requiere $want"
+    fi
   else
     info "golangci-lint no encontrado, instalando $want"
   fi
@@ -114,6 +121,28 @@ install_golangci_lint() {
   go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${want}" \
     || fail "no se pudo instalar golangci-lint v${want}"
   ok "golangci-lint $want instalado"
+}
+
+install_oapi_codegen() {
+  local want current
+  want="$(tool_version oapi-codegen)"
+
+  export PATH="${GO_INSTALL_DIR}/bin:${GOBIN}:${PATH}"
+
+  if command -v oapi-codegen >/dev/null 2>&1; then
+    current="$(oapi-codegen --version 2>/dev/null | tail -1 | sed 's/^v//')" || current=""
+    if [ "$current" = "$want" ]; then
+      ok "oapi-codegen $want"
+      return
+    fi
+    info "oapi-codegen $current instalado, se requiere $want"
+  else
+    info "oapi-codegen no encontrado, instalando $want"
+  fi
+
+  go install "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v${want}" \
+    || fail "no se pudo instalar oapi-codegen v${want}"
+  ok "oapi-codegen $want instalado"
 }
 
 configure_path() {
@@ -152,6 +181,13 @@ verify() {
     failed=1
   fi
 
+  want="$(tool_version oapi-codegen)"
+  current="$(oapi-codegen --version 2>/dev/null | tail -1 | sed 's/^v//')" || current="ausente"
+  if [ "$current" != "$want" ]; then
+    warn "oapi-codegen: se esperaba $want, se encontró $current"
+    failed=1
+  fi
+
   [ "$failed" -eq 0 ] || fail "la verificación no pasó"
   ok "todas las herramientas en la versión declarada"
 }
@@ -161,6 +197,7 @@ main() {
   check_prerequisites
   install_go
   install_golangci_lint
+  install_oapi_codegen
   configure_path
   verify
   info "listo. verifique el proyecto con: make test && make lint"

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
 )
 
 type Server struct {
@@ -21,7 +23,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("/health", s.handleHealth)
+	s.mux.HandleFunc("GET /health", s.handleHealth)
+
+	strict := api.NewStrictHandler(&API{}, nil)
+	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
+		BaseURL:    "/v1",
+		BaseRouter: s.mux,
+	})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
