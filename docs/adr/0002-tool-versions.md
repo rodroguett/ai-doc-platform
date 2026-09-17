@@ -29,6 +29,10 @@ fijadas produjo tres fallos:
    `go.mod`. El comando `go` intentó descargar el toolchain faltante y falló,
    dejando el entorno inoperante hasta reinstalar el compilador desde la
    fuente oficial.
+4. Al actualizar el toolchain a Go 1.27, golangci-lint 2.12.2 comenzó a
+   abortar durante el análisis. La causa está en staticcheck 0.7.0, que la
+   versión del linter incorpora y que no reconoce parte de la sintaxis de esa
+   versión del lenguaje. El proyecto tuvo que permanecer en la serie 1.25.
 
 El patrón común es que la versión del binario y el formato de su archivo de
 configuración constituyen un solo contrato. Cambiar uno sin el otro rompe la
@@ -107,6 +111,10 @@ invocación degrada el ciclo de retroalimentación de forma perceptible.
 - Configurar una máquina nueva requiere instalar versiones específicas en
   lugar de usar el gestor de paquetes del sistema, lo que hace el proceso más
   largo.
+- La versión del lenguaje que el proyecto puede usar no es la más reciente
+  publicada, sino la más reciente que todas sus herramientas soportan. Fijar
+  versiones no evita esta restricción; la hace visible al actualizar, en
+  lugar de manifestarse como un fallo inexplicable durante el análisis.
 
 ### Neutras
 
