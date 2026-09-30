@@ -28,7 +28,7 @@ sistema, incluidos los errores y sus correcciones.
 | Componente | Estado |
 |---|---|
 | API Gateway | Esqueleto desplegado |
-| Contrato OpenAPI | Definido, sin implementar |
+| Contrato OpenAPI | Consultas e ingesta responden con datos de ejemplo; el resto, 501 |
 | RAG Service | Pendiente |
 | LLM Gateway | Pendiente |
 | Orchestrator | Pendiente |
