@@ -3,6 +3,9 @@
 - **Estado:** aceptado
 - **Fecha:** 2026-08-05
 - **Issue relacionado:** #1
+- **Modificado por:** [ADR-0005](0005-monolito-modular.md), que convierte
+  los servicios en módulos de un solo binario hasta que se justifique
+  extraerlos
 
 ## Contexto
 

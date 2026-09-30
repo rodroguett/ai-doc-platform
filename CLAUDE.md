@@ -24,19 +24,21 @@ Lee esta sección con escepticismo: puede estar desactualizada. Verifica
 contra el código y contra `gh issue list`.
 
 - `v0.1.0` y `v0.2.0` (parcial) completados.
-- El sistema es **un solo binario**, no cuatro servicios. La extracción a
-  servicios independientes está planificada, no hecha.
-- El gateway implementa la interfaz generada desde el contrato OpenAPI. Los
-  handlers devuelven "no implementado"; los errores sí respetan RFC 9457.
+- El sistema es **un solo binario**, no cuatro servicios, y así seguirá
+  hasta que se cumplan las condiciones de extracción de ADR-0005.
+- El gateway implementa la interfaz generada desde el contrato OpenAPI.
+  `POST /v1/queries` y `POST /v1/documents` responden con datos de ejemplo
+  detrás de interfaces; el resto de los endpoints devuelve 501. Los errores
+  respetan RFC 9457.
 - No hay base de datos, ni ingesta, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`.
 
 ## Cómo está organizado
 
 ```
-cmd/<servicio>/          binario de cada servicio
-internal/<servicio>/     implementación
-internal/platform/       código compartido entre servicios
+cmd/gateway/             el único binario; conecta las implementaciones
+internal/<módulo>/       gateway, orchestrator, rag, llmgw
+internal/platform/       código compartido entre módulos
 internal/gateway/api/    GENERADO desde el contrato, no editar a mano
 api/openapi.yaml         el contrato: fuente de verdad de la API
 api/codegen.yaml         configuración de la generación
@@ -44,9 +46,11 @@ docs/adr/                decisiones de arquitectura
 scripts/bootstrap.sh     instala las herramientas en sus versiones exactas
 ```
 
-Todos los servicios viven en un monorepo con un único módulo Go. La
-independencia entre ellos se mantiene por convención: `internal/<servicio>`
-no importa a otro `internal/<servicio>`.
+Todos los módulos viven en un monorepo con un único módulo Go. Un módulo
+solo puede importar el **paquete raíz** de los módulos de los que depende,
+nunca sus subpaquetes, y nadie importa el gateway. La regla se verifica con
+`depguard` en `make lint`; al crear un módulo nuevo hay que agregar sus
+reglas a `.golangci.yml` (ADR-0005).
 
 ## Decisiones vigentes
 
@@ -61,6 +65,9 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 - **GitHub Flow** con despliegue continuo (ADR-0003). Un merge a `main`
   despliega; un release es otra cosa y agrupa varios cambios.
 - **Spec-first** (ADR-0004): el contrato genera el código, no al revés.
+- **Monolito modular** (ADR-0005): un binario con fronteras verificadas; un
+  módulo se extrae como servicio solo cuando lo justifica una condición
+  concreta.
 
 ## Convenciones
 
