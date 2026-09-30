@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rodroguett/ai-doc-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/rodroguett/ai-doc-platform/actions/workflows/ci.yml)
 [![Deploy](https://github.com/rodroguett/ai-doc-platform/actions/workflows/deploy.yml/badge.svg)](https://github.com/rodroguett/ai-doc-platform/actions/workflows/deploy.yml)
-[![Go](https://img.shields.io/badge/go-1.23-00ADD8)](https://go.dev)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8)](https://go.dev)
 
 Sistema de consulta sobre documentos regulatorios que responde en lenguaje
 natural **citando la fuente exacta**, con control explícito del costo por
@@ -25,54 +25,88 @@ las decisiones de diseño están registradas como
 [ADRs](docs/adr/) y el historial de commits refleja la evolución real del
 sistema, incluidos los errores y sus correcciones.
 
-| Componente | Estado |
-|---|---|
-| API Gateway | Esqueleto desplegado |
-| Contrato OpenAPI | Consultas e ingesta responden con datos de ejemplo; el resto, 501 |
-| RAG Service | Pendiente |
-| LLM Gateway | Pendiente |
-| Orchestrator | Pendiente |
+Hoy el sistema es **un solo binario desplegado en Cloud Run**. La API pública
+está implementada a partir de su contrato, pero todavía no hay base de datos,
+búsqueda ni llamadas a modelos: las consultas y la ingesta responden con datos
+de ejemplo.
 
-Demo: **https://gateway-w46qaen3gq-uc.a.run.app/health**
+| Módulo | Estado |
+|---|---|
+| `gateway` | Desplegado. `POST /v1/queries` y `POST /v1/documents` responden con datos de ejemplo; el resto de los endpoints, 501 |
+| `rag` | Pendiente: persistencia en Postgres con pgvector ([#23](https://github.com/rodroguett/ai-doc-platform/issues/23)), ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)), búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
+| `orchestrator` | Pendiente |
+| `llmgw` | Pendiente |
+
+Demo: **https://gateway-w46qaen3gq-uc.a.run.app**
+
+```bash
+curl -s https://gateway-w46qaen3gq-uc.a.run.app/v1/queries \
+  -H 'Content-Type: application/json' \
+  -d '{"question": "¿Con qué frecuencia se monitorea el agua subterránea?"}'
+```
+
+La respuesta trae citas a una RCA, su adenda y un informe de seguimiento de un
+proyecto ficticio, junto con la traza de ejecución. La traza declara
+`"provider": "example"`: en este dominio, una respuesta fabricada no debe
+poder confundirse con una real.
 
 ## Arquitectura
 
+El sistema se construye como un **monolito modular**: un binario con cuatro
+módulos de fronteras explícitas, que se extraerán como servicios
+independientes solo cuando una condición concreta lo justifique. El
+razonamiento y esas condiciones están en
+[ADR-0005](docs/adr/0005-monolito-modular.md).
+
 ```mermaid
 graph TD
-    Cliente[Cliente web]
+    Cliente[Cliente]
 
-    Cliente -->|REST| GW[API Gateway<br/>auth · rate limit · versionado]
+    subgraph Binario["Binario único en Cloud Run"]
+        GW[gateway<br/>HTTP · contrato OpenAPI · RFC 9457]
+        EX[servicios de ejemplo<br/>datos fijos del dominio]
+        ORC[orchestrator<br/>encadena recuperación y generación]
+        RAG[rag<br/>ingesta · búsqueda semántica]
+        LLM[llmgw<br/>caché · fallback · costos]
+    end
 
-    GW -->|gRPC| ORC[Orchestrator<br/>encadena RAG y generación]
-    GW -->|gRPC| LLM[LLM Gateway<br/>caché · fallback · costos]
-    GW -->|gRPC| RAG[RAG Service<br/>búsqueda semántica]
+    Cliente -->|REST| GW
+    GW --> EX
+    GW -.-> ORC
+    GW -.-> RAG
+    ORC -.-> RAG
+    ORC -.-> LLM
+    RAG -.-> LLM
+    RAG -.-> PG[(Postgres + pgvector)]
+    LLM -.-> PROV[Proveedores LLM]
 
-    ORC -->|eventos| NATS[(NATS)]
-    LLM --> PROV[Proveedores LLM<br/>Ollama · API externa]
-    RAG --> PG[(Postgres + pgvector)]
-
-    style GW fill:#e8f0fe,stroke:#4285f4
-    style LLM fill:#e6f4ea,stroke:#34a853
+    classDef planned stroke-dasharray: 5 5
+    class ORC,RAG,LLM,PG,PROV planned
 ```
 
-**REST hacia afuera, gRPC hacia adentro.** El contrato público debe ser
-explorable y versionable; entre servicios internos pesan más los contratos
-tipados y el menor overhead de serialización.
+Las líneas y cajas punteadas están planificadas; las sólidas existen. Los
+servicios de ejemplo desaparecen cuando `orchestrator` y `rag` los reemplacen.
+
+**Cada módulo expone un contrato y oculta su implementación.** Otro módulo solo
+puede importar su paquete raíz, nunca sus subpaquetes, y nadie importa el
+gateway. La regla se verifica en CI con `depguard`. Cuando un módulo se
+extraiga, ese paquete raíz se convertirá en su contrato gRPC.
 
 **La ingesta es asíncrona.** Procesar un documento de trescientas páginas y
 generar sus embeddings toma minutos. El endpoint responde `202 Accepted` con un
-identificador de trabajo y el procesamiento sale por NATS.
+identificador de trabajo. Cómo se ejecuta ese trabajo en Cloud Run, que por
+omisión solo asigna CPU mientras atiende una petición, se decide en [#24](https://github.com/rodroguett/ai-doc-platform/issues/24).
 
-**El LLM Gateway concentra las decisiones operacionales.** Es el servicio más
-pequeño y el de mayor densidad arquitectónica: caché de respuestas, circuit
-breaker, fallback entre proveedores y conteo de tokens viven ahí. Cada
-respuesta declara en su traza qué proveedor la generó, si hubo acierto de
-caché y cuánto costó.
+**`llmgw` concentrará las decisiones operacionales.** Caché de respuestas,
+fallback entre proveedores y conteo de tokens vivirán ahí. Cada respuesta
+declarará en su traza qué proveedor la generó, si hubo acierto de caché y
+cuánto costó.
 
 ## Contrato
 
-La API está especificada en [`api/openapi.yaml`](api/openapi.yaml). El diseño
-sigue tres reglas:
+La API está especificada en [`api/openapi.yaml`](api/openapi.yaml) y el
+servidor se genera a partir de ella
+([ADR-0004](docs/adr/0004-spec-first.md)). El diseño sigue tres reglas:
 
 - Las consultas son `POST /v1/queries`, no una búsqueda idempotente: consumen
   tokens, generan costo y se registran para auditoría.
@@ -87,32 +121,40 @@ desglosada entre recuperación y generación.
 
 ## Ejecución local
 
+Para configurar un entorno nuevo con las versiones de herramientas que el
+proyecto declara ([ADR-0002](docs/adr/0002-tool-versions.md)):
+
+```bash
+./scripts/bootstrap.sh
+```
+
+Luego:
+
 ```bash
 make run          # levanta el gateway en :8080
 make test         # tests con detector de condiciones de carrera
-make lint         # golangci-lint
+make lint         # golangci-lint, incluidas las fronteras entre módulos
+make generate     # regenera el servidor tras editar el contrato
 ```
 
 ```bash
-curl -s localhost:8080/health
+curl -s localhost:8080/v1/queries \
+  -H 'Content-Type: application/json' \
+  -d '{"question": "¿Con qué frecuencia se monitorea el agua subterránea?"}'
 ```
 
 ## Estructura
 
 ```
-cmd/          binarios de cada servicio
-internal/     implementación; platform/ contiene lo compartido
-api/          contrato OpenAPI
-proto/        contratos gRPC entre servicios
-docs/adr/     decisiones de arquitectura
-deploy/       infraestructura y despliegue
+cmd/gateway/      el binario; conecta las implementaciones de cada módulo
+internal/         un paquete por módulo; platform/ contiene lo compartido
+api/              contrato OpenAPI y configuración de la generación
+docs/adr/         decisiones de arquitectura
+scripts/          instalación de herramientas
 ```
 
-Los servicios viven en un monorepo con un único módulo Go. La independencia
-entre ellos se mantiene por convención: `internal/<servicio>` no importa a otro
-`internal/<servicio>`, y la única frontera permitida son los contratos de
-`proto/` y `api/`. El razonamiento completo está en
-[ADR-0001](docs/adr/0001-monorepo.md).
+Todo vive en un monorepo con un único módulo Go
+([ADR-0001](docs/adr/0001-monorepo.md)).
 
 ## Despliegue
 
@@ -126,10 +168,9 @@ La imagen se etiqueta con el SHA del commit además de `latest`, de modo que
 cada revisión apunta a una imagen inmutable y el rollback a un commit exacto es
 posible.
 
-El runtime es una imagen distroless de aproximadamente 15 MB, sin shell ni
-gestor de paquetes, ejecutando como usuario no privilegiado. El servicio escala
-a cero cuando no hay tráfico, con un tope de instancias configurado como
-límite de gasto.
+El runtime es una imagen distroless de unos 10 MB, sin shell ni gestor de
+paquetes, ejecutando como usuario no privilegiado. El servicio escala a cero
+cuando no hay tráfico, con un tope de tres instancias como límite de gasto.
 
 ## Decisiones registradas
 
@@ -140,19 +181,10 @@ bien no es un registro, es publicidad.
 - [ADR-0001](docs/adr/0001-monorepo.md) — Alojar todos los servicios en un monorepo
 - [ADR-0002](docs/adr/0002-tool-versions.md) — Fijar versiones exactas de las herramientas de desarrollo
 - [ADR-0003](docs/adr/0003-github-flow.md) — Adoptar GitHub Flow con despliegue continuo
-- [ADR-0004](docs/adr/0004-spect-first.md) — Derivar el servidor del contrato OpenAPI
+- [ADR-0004](docs/adr/0004-spec-first.md) — Derivar el servidor del contrato OpenAPI
 - [ADR-0005](docs/adr/0005-monolito-modular.md) — Construir como monolito modular antes de extraer servicios
 
 ## Contribuir
 
 El flujo de trabajo, la convención de commits y la definición de terminado
 están en [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Ejecución local
-
-Para configurar un entorno nuevo con las versiones de herramientas que el
-proyecto declara:
-
-```bash
-./scripts/bootstrap.sh
-```
