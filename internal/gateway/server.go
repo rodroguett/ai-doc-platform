@@ -10,10 +10,11 @@ import (
 
 type Server struct {
 	mux *http.ServeMux
+	svc Services
 }
 
-func NewServer() *Server {
-	s := &Server{mux: http.NewServeMux()}
+func NewServer(svc Services) *Server {
+	s := &Server{mux: http.NewServeMux(), svc: svc}
 	s.routes()
 	return s
 }
@@ -25,7 +26,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 
-	strict := api.NewStrictHandlerWithOptions(&API{}, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  handleRequestError,
 		ResponseErrorHandlerFunc: handleResponseError,
 	})

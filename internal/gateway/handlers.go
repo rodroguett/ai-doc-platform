@@ -4,22 +4,41 @@ import (
 	"context"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
+	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
 )
 
-// API implementa el contrato definido en api/openapi.yaml.
+// QueryService responde consultas sobre el corpus.
+type QueryService interface {
+	Answer(ctx context.Context, q service.Query) (service.Answer, error)
+}
+
+// DocumentService recibe documentos para ingesta.
+type DocumentService interface {
+	Submit(ctx context.Context, u service.Upload) (service.Job, error)
+}
+
+// Services agrupa las dependencias de los handlers. Cada una está detrás de
+// una interfaz para que la implementación de ejemplo pueda reemplazarse por
+// la real sin tocar la capa HTTP.
+type Services struct {
+	Queries   QueryService
+	Documents DocumentService
+}
+
+// API implementa el contrato definido en api/openapi.yaml. Cada método
+// traduce entre los tipos generados y los del dominio; la lógica vive en los
+// servicios.
 //
-// En esta etapa los métodos no tienen implementación: el objetivo es que el
-// contrato y el servidor compilen juntos, de modo que cualquier endpoint
-// declarado en el spec y ausente en el código impida construir el binario.
-type API struct{}
+// Implementar la interfaz generada hace que cualquier endpoint declarado en
+// el spec y ausente en el código impida construir el binario. Los que aún no
+// tienen servicio detrás responden 501.
+type API struct {
+	svc Services
+}
 
 var _ api.StrictServerInterface = (*API)(nil)
 
 func (a *API) ListDocuments(ctx context.Context, req api.ListDocumentsRequestObject) (api.ListDocumentsResponseObject, error) {
-	return nil, errNotImplemented
-}
-
-func (a *API) CreateDocument(ctx context.Context, req api.CreateDocumentRequestObject) (api.CreateDocumentResponseObject, error) {
 	return nil, errNotImplemented
 }
 
@@ -32,10 +51,6 @@ func (a *API) GetDocument(ctx context.Context, req api.GetDocumentRequestObject)
 }
 
 func (a *API) GetJob(ctx context.Context, req api.GetJobRequestObject) (api.GetJobResponseObject, error) {
-	return nil, errNotImplemented
-}
-
-func (a *API) CreateQuery(ctx context.Context, req api.CreateQueryRequestObject) (api.CreateQueryResponseObject, error) {
 	return nil, errNotImplemented
 }
 

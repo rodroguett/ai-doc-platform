@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway"
+	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
 )
 
 func main() {
@@ -23,8 +24,12 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:              ":" + port,
-		Handler:           gateway.NewServer(),
+		Addr: ":" + port,
+		Handler: gateway.NewServer(gateway.Services{
+			// Datos de ejemplo hasta que existan la búsqueda y la ingesta.
+			Queries:   service.ExampleQueries{},
+			Documents: service.ExampleDocuments{},
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

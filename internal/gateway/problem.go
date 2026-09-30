@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+
+	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
 )
 
 // problemBase es el prefijo de los tipos de problema que expone el servicio.
@@ -45,6 +47,11 @@ var errNotImplemented = newServiceError(
 	"Este endpoint todavía no tiene implementación.",
 )
 
+// invalidRequest construye un error 400 con un detalle apto para el cliente.
+func invalidRequest(detail string) *serviceError {
+	return newServiceError("invalid-request", "Petición inválida", http.StatusBadRequest, detail)
+}
+
 // writeProblem serializa un Problem como application/problem+json.
 func writeProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 	p.Instance = r.URL.Path
@@ -61,6 +68,10 @@ func writeProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 // y su detalle; los inesperados se reportan como 500 sin exponer el mensaje
 // original, que puede contener información interna.
 func handleResponseError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, service.ErrInvalidInput) {
+		err = invalidRequest(err.Error())
+	}
+
 	var se *serviceError
 	if errors.As(err, &se) {
 		writeProblem(w, r, Problem{
