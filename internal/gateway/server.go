@@ -25,10 +25,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 
-	strict := api.NewStrictHandler(&API{}, nil)
-	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
-		BaseURL:    "/v1",
-		BaseRouter: s.mux,
+	strict := api.NewStrictHandlerWithOptions(&API{}, nil, api.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  handleRequestError,
+		ResponseErrorHandlerFunc: handleResponseError,
+	})
+
+	_ = api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
+		BaseURL:          "/v1",
+		BaseRouter:       s.mux,
+		ErrorHandlerFunc: handleRequestError,
 	})
 }
 

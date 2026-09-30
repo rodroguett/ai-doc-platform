@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"errors"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
 )
@@ -15,8 +14,6 @@ import (
 type API struct{}
 
 var _ api.StrictServerInterface = (*API)(nil)
-
-var errNotImplemented = errors.New("not implemented")
 
 func (a *API) ListDocuments(ctx context.Context, req api.ListDocumentsRequestObject) (api.ListDocumentsResponseObject, error) {
 	return nil, errNotImplemented
