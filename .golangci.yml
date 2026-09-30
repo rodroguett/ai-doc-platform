@@ -10,3 +10,75 @@ linters:
     - bodyclose
     - errorlint
     - gosec
+    - depguard
+
+  settings:
+    # Fronteras entre módulos (ADR-0005). Un módulo solo puede importar el
+    # paquete raíz de los módulos de los que depende; sus subpaquetes son
+    # implementación privada. Un prefijo con "/" final prohíbe solo los
+    # subpaquetes; sin él, también el paquete raíz.
+    depguard:
+      rules:
+        gateway:
+          list-mode: lax
+          files: ["**/internal/gateway/**"]
+          deny:
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/orchestrator/
+              desc: solo el paquete raíz de orchestrator es su contrato (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/rag/
+              desc: solo el paquete raíz de rag es su contrato (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/llmgw
+              desc: el gateway no depende de llmgw (ADR-0005)
+
+        gateway-domain:
+          list-mode: lax
+          files: ["**/internal/gateway/service/**"]
+          deny:
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/gateway/api
+              desc: el dominio no conoce los tipos generados desde el contrato
+
+        orchestrator:
+          list-mode: lax
+          files: ["**/internal/orchestrator/**"]
+          deny:
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/gateway
+              desc: nadie importa el gateway, es el borde del sistema (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/rag/
+              desc: solo el paquete raíz de rag es su contrato (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/llmgw/
+              desc: solo el paquete raíz de llmgw es su contrato (ADR-0005)
+
+        rag:
+          list-mode: lax
+          files: ["**/internal/rag/**"]
+          deny:
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/gateway
+              desc: nadie importa el gateway, es el borde del sistema (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/orchestrator
+              desc: rag no depende de orchestrator (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/llmgw/
+              desc: solo el paquete raíz de llmgw es su contrato (ADR-0005)
+
+        llmgw:
+          list-mode: lax
+          files: ["**/internal/llmgw/**"]
+          deny:
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/gateway
+              desc: nadie importa el gateway, es el borde del sistema (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/orchestrator
+              desc: llmgw no depende de otros módulos (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/rag
+              desc: llmgw no depende de otros módulos (ADR-0005)
+
+        platform:
+          list-mode: lax
+          files: ["**/internal/platform/**"]
+          deny:
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/gateway
+              desc: platform no depende de los módulos (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/orchestrator
+              desc: platform no depende de los módulos (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/rag
+              desc: platform no depende de los módulos (ADR-0005)
+            - pkg: github.com/rodroguett/ai-doc-platform/internal/llmgw
+              desc: platform no depende de los módulos (ADR-0005)

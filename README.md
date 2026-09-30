@@ -141,6 +141,7 @@ bien no es un registro, es publicidad.
 - [ADR-0002](docs/adr/0002-tool-versions.md) — Fijar versiones exactas de las herramientas de desarrollo
 - [ADR-0003](docs/adr/0003-github-flow.md) — Adoptar GitHub Flow con despliegue continuo
 - [ADR-0004](docs/adr/0004-spect-first.md) — Derivar el servidor del contrato OpenAPI
+- [ADR-0005](docs/adr/0005-monolito-modular.md) — Construir como monolito modular antes de extraer servicios
 
 ## Contribuir
 
