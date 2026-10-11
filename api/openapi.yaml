@@ -381,7 +381,9 @@ components:
         resource_id:
           type: string
           format: uuid
-          description: Documento resultante, una vez completado
+          description: |
+            Documento sobre el que opera el trabajo. Existe desde que el
+            trabajo se crea, en estado `pending` hasta que la ingesta termina.
         error:
           type: [string, 'null']
         created_at: { type: string, format: date-time }

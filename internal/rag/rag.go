@@ -8,6 +8,7 @@ package rag
 import (
 	"embed"
 	"errors"
+	"io"
 	"io/fs"
 	"time"
 
@@ -20,7 +21,36 @@ var (
 
 	// ErrDuplicate indica que el documento ya existe en la colección.
 	ErrDuplicate = errors.New("documento duplicado")
+
+	// ErrInvalidInput indica que la entrada no cumple las reglas del
+	// dominio. Los errores que lo envuelven llevan un mensaje apto para el
+	// cliente.
+	ErrInvalidInput = errors.New("entrada inválida")
 )
+
+// Upload es un documento enviado para ingesta.
+type Upload struct {
+	Filename   string
+	Collection string
+	Metadata   map[string]any
+	Content    io.Reader
+}
+
+// ListOptions acota un listado de documentos.
+type ListOptions struct {
+	Collection string // vacía: todas las colecciones
+	Cursor     string // vacío: desde el más reciente
+	Limit      int    // cero: el valor por omisión
+}
+
+// Page es una página de documentos, del más reciente al más antiguo.
+type Page struct {
+	Documents []Document
+
+	// NextCursor es el cursor de la página siguiente, o vacío si no hay
+	// más. Es opaco: su formato puede cambiar.
+	NextCursor string
+}
 
 // DocumentStatus es el estado de un documento respecto de su ingesta.
 type DocumentStatus string

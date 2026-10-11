@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -113,3 +114,58 @@ func (s *Store) Job(ctx context.Context, id uuid.UUID) (rag.Job, error) {
 	}
 	return job, nil
 }
+
+// ListDocuments devuelve hasta limit documentos, del más reciente al más
+// antiguo, a partir del que sigue a after. Una colección vacía no filtra.
+func (s *Store) ListDocuments(ctx context.Context, collection string, after *rag.Position, limit int) ([]rag.Document, error) {
+	// Los parámetros nulos desactivan su condición, de modo que una sola
+	// consulta cubre las cuatro combinaciones de filtro y cursor.
+	var (
+		collectionArg *string
+		afterTime     *time.Time
+		afterID       *uuid.UUID
+	)
+	if collection != "" {
+		collectionArg = &collection
+	}
+	if after != nil {
+		afterTime, afterID = &after.CreatedAt, &after.ID
+	}
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, source, collection, status, chunk_count, metadata, content_sha256, created_at
+		FROM documents
+		WHERE ($1::text IS NULL OR collection = $1)
+		  AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3::uuid))
+		ORDER BY created_at DESC, id DESC
+		LIMIT $4`, collectionArg, afterTime, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listar los documentos: %w", err)
+	}
+
+	docs, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Document, error) {
+		var doc rag.Document
+		err := row.Scan(&doc.ID, &doc.Source, &doc.Collection, &doc.Status, &doc.ChunkCount,
+			&doc.Metadata, &doc.ContentSHA256, &doc.CreatedAt)
+		return doc, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leer los documentos: %w", err)
+	}
+	return docs, nil
+}
+
+// DeleteDocument elimina un documento y, por la clave foránea, sus trabajos.
+// Devuelve rag.ErrNotFound si no existe.
+func (s *Store) DeleteDocument(ctx context.Context, id uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM documents WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("eliminar el documento: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return rag.ErrNotFound
+	}
+	return nil
+}
+
+var _ rag.Store = (*Store)(nil)
