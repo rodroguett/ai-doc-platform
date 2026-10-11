@@ -23,7 +23,7 @@ requests y los ADRs son parte de lo que el proyecto muestra.
 Lee esta sección con escepticismo: puede estar desactualizada. Verifica
 contra el código y contra `gh issue list`.
 
-- `v0.1.0` y `v0.2.0` (parcial) completados.
+- `v0.1.0` y `v0.2.0` completados. Sigue `v0.3.0`: ingesta end-to-end.
 - El sistema es **un solo binario**, no cuatro servicios, y así seguirá
   hasta que se cumplan las condiciones de extracción de ADR-0005.
 - El gateway implementa la interfaz generada desde el contrato OpenAPI.
@@ -33,7 +33,11 @@ contra el código y contra `gh issue list`.
 - El contrato se sirve en `/openapi.yaml` y Swagger UI en `/docs`, ambos
   fuera de `/v1`. Swagger UI se carga desde un CDN con versión y hash de
   integridad fijos en `internal/gateway/swagger.html`.
-- No hay base de datos, ni ingesta, ni búsqueda, ni llamadas a modelos.
+- Hay base de datos: Postgres con pgvector en Neon. El binario conecta y
+  migra al arrancar si `DATABASE_URL` está definida (en Cloud Run viene del
+  secreto `database-url`). `internal/rag/store` persiste documentos y
+  trabajos, pero ningún endpoint lo usa todavía (#31).
+- No hay ingesta, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`.
 
 ## Cómo está organizado
@@ -72,6 +76,9 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 - **Monolito modular** (ADR-0005): un binario con fronteras verificadas; un
   módulo se extrae como servicio solo cuando lo justifica una condición
   concreta.
+- **Postgres con pgvector** como único almacén, migraciones SQL embebidas
+  que se aplican al arrancar (ADR-0006). Toda migración debe ser compatible
+  con el código de la revisión anterior: nada ejecuta el `Down`.
 
 ## Convenciones
 
@@ -85,8 +92,10 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 
 ```bash
 ./scripts/bootstrap.sh   # instala herramientas en las versiones declaradas
-make run                 # levanta el gateway en :8080
-make test                # tests con detector de condiciones de carrera
+make run                 # levanta el gateway en :8080, sin base de datos
+make run-db              # lo mismo, con un Postgres local en Docker
+make test                # tests con detector de carrera; requiere Docker
+make db-down             # elimina el Postgres local
 make lint                # golangci-lint
 make generate            # regenera el código desde el contrato
 ```
@@ -99,6 +108,12 @@ el código generado no corresponde al contrato.
 **No edites `internal/gateway/api/openapi_gen.go`.** Cualquier cambio se
 pierde en la siguiente generación. Para cambiar la API se edita el contrato
 y se regenera.
+
+**No subas la versión de Go por una dependencia.** `GOTOOLCHAIN=local` está
+fijado en el Makefile y en CI para que `go get` falle en lugar de descargar
+otro toolchain. Si una dependencia exige un Go más nuevo que el de
+`.tool-versions`, se usa una versión anterior de la dependencia. Fuera del
+Makefile, exporta `GOTOOLCHAIN=local` antes de usar `go get`.
 
 **Verifica antes de afirmar.** Este proyecto ha acumulado fricción por dar
 por hecho el estado de archivos y versiones. Antes de proponer un cambio,
