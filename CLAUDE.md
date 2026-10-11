@@ -30,6 +30,9 @@ contra el código y contra `gh issue list`.
   `POST /v1/queries` y `POST /v1/documents` responden con datos de ejemplo
   detrás de interfaces; el resto de los endpoints devuelve 501. Los errores
   respetan RFC 9457.
+- El contrato se sirve en `/openapi.yaml` y Swagger UI en `/docs`, ambos
+  fuera de `/v1`. Swagger UI se carga desde un CDN con versión y hash de
+  integridad fijos en `internal/gateway/swagger.html`.
 - No hay base de datos, ni ingesta, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`.
 
@@ -42,6 +45,7 @@ internal/platform/       código compartido entre módulos
 internal/gateway/api/    GENERADO desde el contrato, no editar a mano
 api/openapi.yaml         el contrato: fuente de verdad de la API
 api/codegen.yaml         configuración de la generación
+api/embed.go             embebe el contrato para servirlo desde el binario
 docs/adr/                decisiones de arquitectura
 scripts/bootstrap.sh     instala las herramientas en sus versiones exactas
 ```

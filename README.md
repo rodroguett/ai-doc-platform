@@ -37,7 +37,8 @@ de ejemplo.
 | `orchestrator` | Pendiente |
 | `llmgw` | Pendiente |
 
-Demo: **https://gateway-w46qaen3gq-uc.a.run.app**
+Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
+ejecutable desde el navegador.
 
 ```bash
 curl -s https://gateway-w46qaen3gq-uc.a.run.app/v1/queries \
@@ -115,6 +116,11 @@ servidor se genera a partir de ella
 - La paginación es por cursor, no por desplazamiento, para que la ingesta
   concurrente no produzca saltos ni duplicados.
 
+El contrato se publica en [`/openapi.yaml`](https://gateway-w46qaen3gq-uc.a.run.app/openapi.yaml)
+y se explora con Swagger UI en [`/docs`](https://gateway-w46qaen3gq-uc.a.run.app/docs).
+Lo que se sirve es el mismo archivo desde el que se genera el servidor,
+embebido en el binario.
+
 Toda respuesta incluye las citas al documento origen y una traza con el
 proveedor, el estado de la caché, los tokens consumidos y la latencia
 desglosada entre recuperación y generación.
@@ -148,7 +154,7 @@ curl -s localhost:8080/v1/queries \
 ```
 cmd/gateway/      el binario; conecta las implementaciones de cada módulo
 internal/         un paquete por módulo; platform/ contiene lo compartido
-api/              contrato OpenAPI y configuración de la generación
+api/              contrato OpenAPI, configuración de la generación y su embebido
 docs/adr/         decisiones de arquitectura
 scripts/          instalación de herramientas
 ```
@@ -168,7 +174,7 @@ La imagen se etiqueta con el SHA del commit además de `latest`, de modo que
 cada revisión apunta a una imagen inmutable y el rollback a un commit exacto es
 posible.
 
-El runtime es una imagen distroless de unos 10 MB, sin shell ni gestor de
+El runtime es una imagen distroless de unos 8 MB, sin shell ni gestor de
 paquetes, ejecutando como usuario no privilegiado. El servicio escala a cero
 cuando no hay tráfico, con un tope de tres instancias como límite de gasto.
 
