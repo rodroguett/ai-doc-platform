@@ -47,6 +47,10 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ vars.GCP_REGION }}
           image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/containers/${{ env.SERVICE }}:${{ github.sha }}
+          # La cadena de conexión vive en Secret Manager. Aquí solo figura
+          # el nombre del secreto, nunca su valor.
+          secrets: |-
+            DATABASE_URL=database-url:latest
           flags: >-
             --allow-unauthenticated
             --min-instances=0
