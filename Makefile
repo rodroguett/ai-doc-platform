@@ -9,11 +9,14 @@ PG_IMAGE     := pgvector/pgvector:0.8.7-pg17
 PG_CONTAINER := aidoc-pg
 PG_URL       := postgres://postgres:postgres@localhost:55432/aidoc?sslmode=disable
 
+# Token de escritura para desarrollo local. No protege nada: es público.
+DEV_TOKEN := dev-token
+
 run:
 	go run ./cmd/gateway
 
 run-db: db-up
-	DATABASE_URL='$(PG_URL)' go run ./cmd/gateway
+	DATABASE_URL='$(PG_URL)' API_WRITE_TOKEN='$(DEV_TOKEN)' go run ./cmd/gateway
 
 test: db-up
 	TEST_DATABASE_URL='$(PG_URL)' go test -race -cover ./...

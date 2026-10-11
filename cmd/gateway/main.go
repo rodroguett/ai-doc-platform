@@ -61,9 +61,13 @@ func run() error {
 		services.Documents = rag.NewService(store.New(pool))
 	}
 
+	if cfg.WriteToken == "" {
+		slog.Warn("API_WRITE_TOKEN no está definida; las operaciones de escritura rechazan toda petición")
+	}
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           gateway.NewServer(services),
+		Handler:           gateway.NewServer(services, gateway.WithWriteToken(cfg.WriteToken)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

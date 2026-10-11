@@ -23,7 +23,17 @@ func newExampleServer() *Server {
 	return NewServer(Services{
 		Queries:   service.ExampleQueries{},
 		Documents: rag.NewService(newMemStore()),
-	})
+	}, WithWriteToken(testToken))
+}
+
+// testToken es el token de escritura de los servidores de prueba. Los
+// ayudantes postDocument y do lo envían siempre; los tests de autorización
+// arman sus peticiones a mano.
+const testToken = "token-de-prueba"
+
+func authorize(req *http.Request) *http.Request {
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	return req
 }
 
 // memStore es un rag.Store en memoria con el mismo comportamiento observable
