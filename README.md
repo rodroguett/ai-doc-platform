@@ -26,15 +26,16 @@ las decisiones de diseño están registradas como
 sistema, incluidos los errores y sus correcciones.
 
 Hoy el sistema es **un solo binario desplegado en Cloud Run**, conectado a
-Postgres con pgvector. La API pública está implementada a partir de su
-contrato, pero todavía no hay ingesta, búsqueda ni llamadas a modelos: las
-consultas y la subida de documentos responden con datos de ejemplo, y ningún
-endpoint lee aún de la base de datos.
+Postgres con pgvector. Los documentos subidos y sus trabajos de ingesta se
+registran en la base de datos y pueden consultarse, listarse y eliminarse.
+Todavía no hay ingesta, búsqueda ni llamadas a modelos: el contenido de un
+documento subido no se procesa ni se conserva, y las consultas responden con
+datos de ejemplo.
 
 | Módulo | Estado |
 |---|---|
-| `gateway` | Desplegado. `POST /v1/queries` y `POST /v1/documents` responden con datos de ejemplo; el resto de los endpoints, 501 |
-| `rag` | Esquema y persistencia de documentos y trabajos en Postgres, con migraciones al arrancar. Pendiente: conectarla a los endpoints ([#31](https://github.com/rodroguett/ai-doc-platform/issues/31)), ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)), búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
+| `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
+| `rag` | Registro, consulta, listado paginado y eliminación de documentos y trabajos. Pendiente: ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `orchestrator` | Pendiente |
 | `llmgw` | Pendiente |
 
@@ -66,29 +67,28 @@ graph TD
 
     subgraph Binario["Binario único en Cloud Run"]
         GW[gateway<br/>HTTP · contrato OpenAPI · RFC 9457]
-        EX[servicios de ejemplo<br/>datos fijos del dominio]
+        EX[consultas de ejemplo<br/>datos fijos del dominio]
         ORC[orchestrator<br/>encadena recuperación y generación]
-        RAG[rag<br/>ingesta · búsqueda semántica]
+        RAG[rag<br/>documentos y trabajos<br/>ingesta y búsqueda pendientes]
         LLM[llmgw<br/>caché · fallback · costos]
     end
 
     Cliente -->|REST| GW
     GW --> EX
     GW -.-> ORC
-    GW -.-> RAG
+    GW --> RAG
     ORC -.-> RAG
     ORC -.-> LLM
     RAG -.-> LLM
-    RAG -.-> PG[(Postgres + pgvector)]
-    Binario -->|migraciones al arrancar| PG
+    RAG --> PG[(Postgres + pgvector)]
     LLM -.-> PROV[Proveedores LLM]
 
     classDef planned stroke-dasharray: 5 5
-    class ORC,RAG,LLM,PROV planned
+    class ORC,LLM,PROV planned
 ```
 
-Las líneas y cajas punteadas están planificadas; las sólidas existen. Los
-servicios de ejemplo desaparecen cuando `orchestrator` y `rag` los reemplacen.
+Las líneas y cajas punteadas están planificadas; las sólidas existen. El
+servicio de ejemplo de consultas desaparece cuando `orchestrator` lo reemplace.
 
 **Cada módulo expone un contrato y oculta su implementación.** Otro módulo solo
 puede importar su paquete raíz, nunca sus subpaquetes, y nadie importa el
