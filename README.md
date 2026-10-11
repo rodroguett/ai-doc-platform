@@ -25,15 +25,16 @@ las decisiones de diseño están registradas como
 [ADRs](docs/adr/) y el historial de commits refleja la evolución real del
 sistema, incluidos los errores y sus correcciones.
 
-Hoy el sistema es **un solo binario desplegado en Cloud Run**. La API pública
-está implementada a partir de su contrato, pero todavía no hay base de datos,
-búsqueda ni llamadas a modelos: las consultas y la ingesta responden con datos
-de ejemplo.
+Hoy el sistema es **un solo binario desplegado en Cloud Run**, conectado a
+Postgres con pgvector. La API pública está implementada a partir de su
+contrato, pero todavía no hay ingesta, búsqueda ni llamadas a modelos: las
+consultas y la subida de documentos responden con datos de ejemplo, y ningún
+endpoint lee aún de la base de datos.
 
 | Módulo | Estado |
 |---|---|
 | `gateway` | Desplegado. `POST /v1/queries` y `POST /v1/documents` responden con datos de ejemplo; el resto de los endpoints, 501 |
-| `rag` | Pendiente: persistencia en Postgres con pgvector ([#23](https://github.com/rodroguett/ai-doc-platform/issues/23)), ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)), búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
+| `rag` | Esquema y persistencia de documentos y trabajos en Postgres, con migraciones al arrancar. Pendiente: conectarla a los endpoints ([#31](https://github.com/rodroguett/ai-doc-platform/issues/31)), ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)), búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `orchestrator` | Pendiente |
 | `llmgw` | Pendiente |
 
@@ -79,10 +80,11 @@ graph TD
     ORC -.-> LLM
     RAG -.-> LLM
     RAG -.-> PG[(Postgres + pgvector)]
+    Binario -->|migraciones al arrancar| PG
     LLM -.-> PROV[Proveedores LLM]
 
     classDef planned stroke-dasharray: 5 5
-    class ORC,RAG,LLM,PG,PROV planned
+    class ORC,RAG,LLM,PROV planned
 ```
 
 Las líneas y cajas punteadas están planificadas; las sólidas existen. Los
@@ -137,11 +139,16 @@ proyecto declara ([ADR-0002](docs/adr/0002-tool-versions.md)):
 Luego:
 
 ```bash
-make run          # levanta el gateway en :8080
+make run          # levanta el gateway en :8080, sin base de datos
+make run-db       # lo mismo, conectado a un Postgres local con pgvector
 make test         # tests con detector de condiciones de carrera
 make lint         # golangci-lint, incluidas las fronteras entre módulos
 make generate     # regenera el servidor tras editar el contrato
 ```
+
+`make test` y `make run-db` levantan un Postgres con pgvector en Docker: los
+tests de persistencia corren contra una base de datos real. `make db-down` lo
+elimina.
 
 ```bash
 curl -s localhost:8080/v1/queries \
@@ -174,9 +181,15 @@ La imagen se etiqueta con el SHA del commit además de `latest`, de modo que
 cada revisión apunta a una imagen inmutable y el rollback a un commit exacto es
 posible.
 
-El runtime es una imagen distroless de unos 8 MB, sin shell ni gestor de
+El runtime es una imagen distroless de unos 14 MB, sin shell ni gestor de
 paquetes, ejecutando como usuario no privilegiado. El servicio escala a cero
 cuando no hay tráfico, con un tope de tres instancias como límite de gasto.
+
+La base de datos es Postgres con pgvector en el plan gratuito de Neon, que
+también suspende su cómputo sin actividad. La cadena de conexión vive en
+Secret Manager; el binario aplica las migraciones pendientes al arrancar y no
+recibe tráfico si no puede hacerlo
+([ADR-0006](docs/adr/0006-postgres-pgvector.md)).
 
 ## Decisiones registradas
 
@@ -189,6 +202,7 @@ bien no es un registro, es publicidad.
 - [ADR-0003](docs/adr/0003-github-flow.md) — Adoptar GitHub Flow con despliegue continuo
 - [ADR-0004](docs/adr/0004-spec-first.md) — Derivar el servidor del contrato OpenAPI
 - [ADR-0005](docs/adr/0005-monolito-modular.md) — Construir como monolito modular antes de extraer servicios
+- [ADR-0006](docs/adr/0006-postgres-pgvector.md) — Persistir en Postgres con pgvector y migrar al arrancar
 
 ## Contribuir
 
