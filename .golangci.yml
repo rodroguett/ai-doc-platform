@@ -12,6 +12,14 @@ linters:
     - gosec
     - depguard
 
+  exclusions:
+    rules:
+      # Los tests de autorización necesitan tokens de prueba escritos en el
+      # código. G101 sigue activa fuera de los tests.
+      - path: _test\.go
+        linters: [gosec]
+        text: G101
+
   settings:
     # Fronteras entre módulos (ADR-0005). Un módulo solo puede importar el
     # paquete raíz de los módulos de los que depende; sus subpaquetes son

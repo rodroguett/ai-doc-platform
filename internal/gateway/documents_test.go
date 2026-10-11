@@ -43,12 +43,12 @@ func postDocument(t *testing.T, s *Server, fields map[string]string) *httptest.R
 	body, contentType := multipartBody(t, fields)
 	req := httptest.NewRequest(http.MethodPost, "/v1/documents", body)
 	req.Header.Set("Content-Type", contentType)
-	return serve(t, s, req)
+	return serve(t, s, authorize(req))
 }
 
 func do(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {
 	t.Helper()
-	return serve(t, s, httptest.NewRequest(method, path, nil))
+	return serve(t, s, authorize(httptest.NewRequest(method, path, nil)))
 }
 
 // upload sube un documento y devuelve su trabajo.
@@ -243,7 +243,7 @@ func TestDeleteDocument(t *testing.T) {
 }
 
 func TestDocumentsWithoutDatabase(t *testing.T) {
-	s := NewServer(Services{})
+	s := NewServer(Services{}, WithWriteToken(testToken))
 	id := uuid.NewString()
 
 	requests := []*httptest.ResponseRecorder{

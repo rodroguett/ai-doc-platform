@@ -11,10 +11,16 @@ import (
 type Server struct {
 	mux *http.ServeMux
 	svc Services
+
+	// writeToken es el sha256 del token de escritura, o nil si no hay.
+	writeToken []byte
 }
 
-func NewServer(svc Services) *Server {
+func NewServer(svc Services, opts ...Option) *Server {
 	s := &Server{mux: http.NewServeMux(), svc: svc}
+	for _, opt := range opts {
+		opt(s)
+	}
 	s.routes()
 	return s
 }
@@ -32,10 +38,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /docs", s.handleDocs)
 	s.mux.Handle("GET /{$}", http.RedirectHandler("/docs", http.StatusFound))
 
-	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc}, nil, api.StrictHTTPServerOptions{
-		RequestErrorHandlerFunc:  handleRequestError,
-		ResponseErrorHandlerFunc: handleResponseError,
-	})
+	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc},
+		[]api.StrictMiddlewareFunc{s.requireWriteToken},
+		api.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  handleRequestError,
+			ResponseErrorHandlerFunc: handleResponseError,
+		})
 
 	_ = api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
 		BaseURL:          "/v1",

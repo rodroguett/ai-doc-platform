@@ -56,7 +56,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/QueryResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
@@ -78,7 +77,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentPage'
-        '401': { $ref: '#/components/responses/Unauthorized' }
 
     post:
       tags: [documents]
@@ -87,6 +85,8 @@ paths:
         Encola el documento para chunking y generación de embeddings.
         El procesamiento es asíncrono: use el job devuelto para seguir el avance.
       operationId: createDocument
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -118,6 +118,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Job'
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '413':
           description: Archivo excede el tamaño máximo
@@ -147,9 +148,12 @@ paths:
       tags: [documents]
       summary: Elimina un documento y sus chunks
       operationId: deleteDocument
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Eliminado
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /jobs/{jobId}:
@@ -197,7 +201,10 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      description: |
+        Token opaco de escritura, entregado fuera de banda. No es un JWT ni
+        identifica a un usuario: autoriza las operaciones que modifican el
+        corpus.
 
   parameters:
     IdempotencyKey:
@@ -436,6 +443,10 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
     Unauthorized:
       description: Credenciales ausentes o inválidas
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+          description: Esquema de autenticación esperado
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -463,5 +474,6 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
 
-security:
-  - bearerAuth: []
+# Sin requisito por omisión: leer y consultar es público. Las operaciones que
+# escriben declaran su propio requisito.
+security: []

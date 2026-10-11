@@ -39,7 +39,9 @@ contra el código y contra `gh issue list`.
   503.
 - El contenido de un documento subido se usa para calcular su hash y luego
   se descarta: todavía no se guarda en ninguna parte (#24).
-- La API pública no tiene autenticación, y ya acepta escrituras.
+- Leer y consultar es público. Subir y eliminar documentos exige el token
+  de escritura (`API_WRITE_TOKEN`; en Cloud Run, el secreto
+  `api-write-token`). Sin token configurado, esas operaciones rechazan todo.
 - No hay ingesta, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`.
 
@@ -82,6 +84,10 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 - **Postgres con pgvector** como único almacén, migraciones SQL embebidas
   que se aplican al arrancar (ADR-0006). Toda migración debe ser compatible
   con el código de la revisión anterior: nada ejecuta el `Down`.
+- **Token único de escritura** (ADR-0007). Las operaciones protegidas se
+  declaran en el contrato con `security` y se repiten en
+  `protectedOperations` (`internal/gateway/auth.go`); un test verifica que
+  coincidan. Una operación nueva que escriba debe agregarse en ambos.
 
 ## Convenciones
 
