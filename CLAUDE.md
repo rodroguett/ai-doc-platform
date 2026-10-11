@@ -87,6 +87,11 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 - **Postgres con pgvector** como único almacén, migraciones SQL embebidas
   que se aplican al arrancar (ADR-0006). Toda migración debe ser compatible
   con el código de la revisión anterior: nada ejecuta el `Down`.
+- **Embeddings con `gemini-embedding-001`, 768 dimensiones, en la capa
+  gratuita de Gemini** (ADR-0008). La clave vive en un proyecto de Google
+  sin facturación: es lo que impide un cobro. No asociarle facturación ni
+  mover la clave al proyecto del servicio. Ningún fragmento puede superar
+  los 2.048 tokens.
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
   `protectedOperations` (`internal/gateway/auth.go`); un test verifica que
@@ -147,7 +152,9 @@ cambio hace que deje de ser cierto, se corrige en el mismo pull request.
 
 ## Presupuesto
 
-El sistema usa APIs de pago con saldo prepagado y sin recarga automática. El
-gasto previsto es inferior a un dólar mensual. Cualquier cambio que aumente
-el consumo de tokens necesita justificarse; el caché de respuestas y el
+El demo no debe generar ningún cobro; el tope acordado es un dólar. La base
+de datos (Neon) y los embeddings (Gemini) usan capas gratuitas sin medio de
+pago, de modo que al agotarse una cuota el servicio falla en lugar de
+cobrar. Cualquier cambio que introduzca un medio de pago, o que aumente el
+consumo de una cuota, necesita justificarse; el caché de respuestas y el
 conteo de costos son parte del diseño, no adornos.
