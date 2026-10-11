@@ -26,6 +26,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 
+	// La documentación queda fuera de /v1: describe la API, no es parte de
+	// ella, y no debe cambiar de ruta cuando la API cambie de versión.
+	s.mux.HandleFunc("GET /openapi.yaml", s.handleSpec)
+	s.mux.HandleFunc("GET /docs", s.handleDocs)
+	s.mux.Handle("GET /{$}", http.RedirectHandler("/docs", http.StatusFound))
+
 	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc}, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  handleRequestError,
 		ResponseErrorHandlerFunc: handleResponseError,

@@ -13,10 +13,10 @@ info:
     name: MIT
 
 servers:
-  - url: https://api.example.cl/v1
-    description: Producción
-  - url: http://localhost:8080/v1
-    description: Local
+  # Relativa al origen que sirve este documento: la misma especificación
+  # funciona en local y desplegada, y la documentación interactiva ejecuta
+  # las peticiones contra el servicio que la publica.
+  - url: /v1
 
 tags:
   - name: queries
@@ -225,6 +225,10 @@ components:
     QueryRequest:
       type: object
       required: [question]
+      examples:
+        - question: ¿Con qué frecuencia se monitorea el agua subterránea?
+          top_k: 3
+          trace: full
       properties:
         question:
           type: string
