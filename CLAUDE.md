@@ -27,16 +27,19 @@ contra el código y contra `gh issue list`.
 - El sistema es **un solo binario**, no cuatro servicios, y así seguirá
   hasta que se cumplan las condiciones de extracción de ADR-0005.
 - El gateway implementa la interfaz generada desde el contrato OpenAPI.
-  `POST /v1/queries` y `POST /v1/documents` responden con datos de ejemplo
-  detrás de interfaces; el resto de los endpoints devuelve 501. Los errores
-  respetan RFC 9457.
+  Los endpoints de documentos y trabajos operan sobre Postgres a través de
+  `rag.Service`; `POST /v1/queries` responde con datos de ejemplo y
+  `GET /v1/usage` devuelve 501. Los errores respetan RFC 9457.
 - El contrato se sirve en `/openapi.yaml` y Swagger UI en `/docs`, ambos
   fuera de `/v1`. Swagger UI se carga desde un CDN con versión y hash de
   integridad fijos en `internal/gateway/swagger.html`.
 - Hay base de datos: Postgres con pgvector en Neon. El binario conecta y
   migra al arrancar si `DATABASE_URL` está definida (en Cloud Run viene del
-  secreto `database-url`). `internal/rag/store` persiste documentos y
-  trabajos, pero ningún endpoint lo usa todavía (#31).
+  secreto `database-url`); sin ella, los endpoints de documentos responden
+  503.
+- El contenido de un documento subido se usa para calcular su hash y luego
+  se descarta: todavía no se guarda en ninguna parte (#24).
+- La API pública no tiene autenticación, y ya acepta escrituras.
 - No hay ingesta, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`.
 
@@ -120,8 +123,9 @@ por hecho el estado de archivos y versiones. Antes de proponer un cambio,
 lee el archivo; antes de dar por instalada una herramienta, comprueba su
 versión.
 
-**Los tipos del dominio están separados de los generados.** Los handlers
-traducen entre ambos. Es deliberado: permite cambiar el contrato HTTP sin
+**Los tipos del dominio están separados de los generados.** Los de
+documentos y trabajos viven en el paquete raíz de `rag`; los de consultas,
+todavía en `internal/gateway/service`. Los handlers traducen entre ambos. Es deliberado: permite cambiar el contrato HTTP sin
 tocar la lógica, y al revés.
 
 **Las consecuencias negativas se escriben.** En los ADRs y en las

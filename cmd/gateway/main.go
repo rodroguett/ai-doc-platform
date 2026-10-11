@@ -15,6 +15,7 @@ import (
 	"github.com/rodroguett/ai-doc-platform/internal/platform/config"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
+	"github.com/rodroguett/ai-doc-platform/internal/rag/store"
 )
 
 func main() {
@@ -33,10 +34,15 @@ func run() error {
 
 	cfg := config.Load()
 
-	// Sin base de datos configurada el proceso arranca igual: todavía ningún
-	// endpoint la usa. Con ella, un fallo al conectar o migrar impide
-	// arrancar, de modo que un despliegue con el esquema roto no recibe
-	// tráfico.
+	services := gateway.Services{
+		// Datos de ejemplo hasta que exista la búsqueda.
+		Queries: service.ExampleQueries{},
+	}
+
+	// Sin base de datos configurada el proceso arranca igual y los endpoints
+	// de documentos responden 503. Con ella, un fallo al conectar o migrar
+	// impide arrancar, de modo que un despliegue con el esquema roto no
+	// recibe tráfico.
 	if cfg.DatabaseURL == "" {
 		slog.Warn("DATABASE_URL no está definida; se arranca sin base de datos")
 	} else {
@@ -51,15 +57,13 @@ func run() error {
 			return err
 		}
 		slog.Info("base de datos lista", "migraciones_aplicadas", applied)
+
+		services.Documents = rag.NewService(store.New(pool))
 	}
 
 	srv := &http.Server{
-		Addr: ":" + cfg.Port,
-		Handler: gateway.NewServer(gateway.Services{
-			// Datos de ejemplo hasta que existan la búsqueda y la ingesta.
-			Queries:   service.ExampleQueries{},
-			Documents: service.ExampleDocuments{},
-		}),
+		Addr:              ":" + cfg.Port,
+		Handler:           gateway.NewServer(services),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

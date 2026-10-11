@@ -66,7 +66,7 @@ func TestCreateQueryRejectsMalformedJSON(t *testing.T) {
 
 func TestCreateQueryHidesInternalErrors(t *testing.T) {
 	const internalMsg = "dial tcp 10.0.0.7:5432: password authentication failed"
-	s := NewServer(Services{Queries: failingService{err: errors.New(internalMsg)}})
+	s := NewServer(Services{Queries: failingQueries{err: errors.New(internalMsg)}})
 
 	rec := postQuery(t, s, `{"question": "¿Qué dice la RCA sobre el agua?"}`)
 

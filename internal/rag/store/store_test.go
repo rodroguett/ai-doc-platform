@@ -142,3 +142,45 @@ func TestNotFound(t *testing.T) {
 		t.Errorf("trabajo: got %v, want ErrNotFound", err)
 	}
 }
+
+// Con fechas de creación idénticas, el desempate por id es lo único que
+// impide que el recorrido repita o salte documentos.
+func TestListDocumentsBreaksTiesByID(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.Migrate(ctx, pool, rag.Migrations()); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	s := store.New(pool)
+
+	for _, sha := range []string{"aaaa", "bbbb", "cccc"} {
+		doc, job := newDocument(sha)
+		if _, _, err := s.CreateDocument(ctx, doc, job); err != nil {
+			t.Fatalf("crear: %v", err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `UPDATE documents SET created_at = '2026-01-01T00:00:00Z'`); err != nil {
+		t.Fatalf("igualar las fechas: %v", err)
+	}
+
+	seen := map[uuid.UUID]bool{}
+	var after *rag.Position
+	for range 3 {
+		docs, err := s.ListDocuments(ctx, "rca", after, 1)
+		if err != nil {
+			t.Fatalf("listar: %v", err)
+		}
+		if len(docs) != 1 {
+			t.Fatalf("got %d documentos, want 1", len(docs))
+		}
+		if seen[docs[0].ID] {
+			t.Fatalf("el documento %s se repite", docs[0].ID)
+		}
+		seen[docs[0].ID] = true
+		after = &rag.Position{CreatedAt: docs[0].CreatedAt, ID: docs[0].ID}
+	}
+
+	if docs, err := s.ListDocuments(ctx, "rca", after, 1); err != nil || len(docs) != 0 {
+		t.Errorf("tras el último documento: got %d y %v, want 0", len(docs), err)
+	}
+}
