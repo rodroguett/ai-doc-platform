@@ -123,6 +123,12 @@ y se explora con Swagger UI en [`/docs`](https://gateway-w46qaen3gq-uc.a.run.app
 Lo que se sirve es el mismo archivo desde el que se genera el servidor,
 embebido en el binario.
 
+Leer y consultar es público. Las operaciones que modifican el corpus —subir y
+eliminar documentos— exigen un token de escritura en el encabezado
+`Authorization: Bearer`, de modo que un tercero no pueda llenar ni vaciar la
+demo ([ADR-0007](docs/adr/0007-token-de-escritura.md)). En `/docs`, el botón
+*Authorize* permite ingresarlo.
+
 Toda respuesta incluye las citas al documento origen y una traza con el
 proveedor, el estado de la caché, los tokens consumidos y la latencia
 desglosada entre recuperación y generación.
@@ -149,6 +155,14 @@ make generate     # regenera el servidor tras editar el contrato
 `make test` y `make run-db` levantan un Postgres con pgvector en Docker: los
 tests de persistencia corren contra una base de datos real. `make db-down` lo
 elimina.
+
+Con `make run-db`, el token de escritura es `dev-token`:
+
+```bash
+curl -s localhost:8080/v1/documents \
+  -H 'Authorization: Bearer dev-token' \
+  -F file=@documento.pdf -F collection=rca
+```
 
 ```bash
 curl -s localhost:8080/v1/queries \
@@ -203,6 +217,7 @@ bien no es un registro, es publicidad.
 - [ADR-0004](docs/adr/0004-spec-first.md) — Derivar el servidor del contrato OpenAPI
 - [ADR-0005](docs/adr/0005-monolito-modular.md) — Construir como monolito modular antes de extraer servicios
 - [ADR-0006](docs/adr/0006-postgres-pgvector.md) — Persistir en Postgres con pgvector y migrar al arrancar
+- [ADR-0007](docs/adr/0007-token-de-escritura.md) — Proteger las escrituras con un token único
 
 ## Contribuir
 
