@@ -75,6 +75,26 @@ Según el foro oficial de Google, a la fecha de este ADR:
 | Peticiones por día | 1.000 | Techo diario de consultas más ingesta |
 | Tokens por texto | 2.048 | Ningún fragmento puede superarlo |
 
+### Verificado con la cuenta real
+
+Con la clave ya creada, el 2026-10-11:
+
+- El modelo responde en la capa gratuita, y el proyecto que aloja la clave
+  no tiene facturación asociada.
+- Con `outputDimensionality: 768` devuelve 768 valores con norma 0,58: la
+  normalización posterior es necesaria. Sin ese parámetro devuelve 3.072
+  valores ya normalizados.
+- Una petición tarda alrededor de un segundo.
+- Un fragmento sobre monitoreo de aguas y una consulta sobre lo mismo
+  obtienen similitud coseno 0,70. Es una sola muestra: confirma que el
+  modelo funciona, no mide su calidad.
+- **Dos de unas quince peticiones fallaron con `403 PERMISSION_DENIED`** y
+  la siguiente, idéntica, respondió bien. No es el error de cuota, que
+  sería 429. La clave tenía minutos de creada, lo que sugiere propagación
+  pendiente, pero no está confirmado.
+- La respuesta no trae cabeceras con la cuota restante: los límites no
+  pueden leerse desde la API.
+
 ## Alternativas consideradas
 
 ### Voyage AI, sin medio de pago
@@ -156,8 +176,14 @@ confirmar que tenga capa gratuita.
   sobre texto legal chileno. Medirla requiere el conjunto de preguntas de
   evaluación, que aún no existe.
 - **Los límites citados provienen del foro de Google, no de su tabla
-  oficial de cuotas.** Deben confirmarse con la cuenta real antes de
-  dimensionar la ingesta.
+  oficial de cuotas**, y la API no los informa. Se conocerán con certeza
+  al alcanzarlos.
+- **La API falla de forma intermitente con un error que no es de cuota.**
+  La ingesta debe reintentar ante cualquier fallo transitorio, no solo
+  ante un 429, y una consulta puede fallar sin causa atribuible al
+  usuario.
+- **No hay forma de saber cuánta cuota queda.** El conteo de uso debe
+  llevarlo el propio sistema.
 
 ### Neutras
 
