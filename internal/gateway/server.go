@@ -17,19 +17,30 @@ type Server struct {
 
 	readiness    []readinessCheck
 	readyTimeout time.Duration
+
+	limiter *rateLimiter
+	handler http.Handler
 }
 
 func NewServer(svc Services, opts ...Option) *Server {
-	s := &Server{mux: http.NewServeMux(), svc: svc, readyTimeout: defaultReadyTimeout}
+	s := &Server{
+		mux:          http.NewServeMux(),
+		svc:          svc,
+		readyTimeout: defaultReadyTimeout,
+		// El límite está activo por omisión: un servidor construido sin
+		// pensar en él queda protegido.
+		limiter: newRateLimiter(defaultRatePerMinute, defaultRateBurst, time.Now),
+	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	s.routes()
+	s.handler = s.limit(s.mux)
 	return s
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.handler.ServeHTTP(w, r)
 }
 
 func (s *Server) routes() {
