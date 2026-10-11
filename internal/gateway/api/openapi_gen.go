@@ -170,7 +170,8 @@ type Job struct {
 	Id        openapi_types.UUID `json:"id"`
 	Progress  *int               `json:"progress,omitempty"`
 
-	// ResourceId Documento resultante, una vez completado
+	// ResourceId Documento sobre el que opera el trabajo. Existe desde que el
+	// trabajo se crea, en estado `pending` hasta que la ingesta termina.
 	ResourceId *openapi_types.UUID `json:"resource_id,omitempty"`
 	Status     JobStatus           `json:"status"`
 	Type       JobType             `json:"type"`

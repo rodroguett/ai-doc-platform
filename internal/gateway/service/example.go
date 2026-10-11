@@ -3,16 +3,15 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// Las implementaciones de este archivo devuelven datos fijos, coherentes con
-// el dominio, mientras no existan la búsqueda ni la ingesta reales. Sustituyen
-// a las implementaciones reales sin que los handlers cambien.
+// La implementación de este archivo devuelve datos fijos, coherentes con el
+// dominio, mientras no exista la búsqueda real. Sustituye a la implementación
+// real sin que los handlers cambien.
 //
 // El proyecto "Loma Seca" y sus documentos son ficticios.
 
@@ -144,29 +143,4 @@ func composeAnswer(q Query, chunks []exampleChunk) string {
 		fmt.Fprintf(&b, "%s [%d].", c.sentence, i+1)
 	}
 	return b.String()
-}
-
-// ExampleDocuments acepta cualquier documento válido y devuelve un trabajo de
-// ingesta en cola que nunca avanza.
-type ExampleDocuments struct{}
-
-func (ExampleDocuments) Submit(ctx context.Context, u Upload) (Job, error) {
-	if err := u.Validate(); err != nil {
-		return Job{}, err
-	}
-
-	n, err := io.Copy(io.Discard, u.Content)
-	if err != nil {
-		return Job{}, fmt.Errorf("leer el documento: %w", err)
-	}
-	if n == 0 {
-		return Job{}, fmt.Errorf("%w: el archivo está vacío", ErrInvalidInput)
-	}
-
-	return Job{
-		ID:        uuid.New(),
-		Kind:      JobIngest,
-		Status:    JobQueued,
-		CreatedAt: time.Now().UTC(),
-	}, nil
 }

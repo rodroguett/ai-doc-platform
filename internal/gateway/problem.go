@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
 // problemBase es el prefijo de los tipos de problema que expone el servicio.
@@ -40,6 +41,14 @@ func newServiceError(kind, title string, status int, detail string) *serviceErro
 	return &serviceError{kind: kind, title: title, status: status, detail: detail}
 }
 
+// errNoDatabase se devuelve cuando el proceso corre sin base de datos.
+var errNoDatabase = newServiceError(
+	"unavailable",
+	"Servicio no disponible",
+	http.StatusServiceUnavailable,
+	"El almacenamiento de documentos no está configurado en esta instancia.",
+)
+
 var errNotImplemented = newServiceError(
 	"not-implemented",
 	"Funcionalidad no disponible",
@@ -68,9 +77,7 @@ func writeProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 // y su detalle; los inesperados se reportan como 500 sin exponer el mensaje
 // original, que puede contener información interna.
 func handleResponseError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, service.ErrInvalidInput) {
-		err = invalidRequest(err.Error())
-	}
+	err = fromDomainError(err)
 
 	var se *serviceError
 	if errors.As(err, &se) {
@@ -91,6 +98,24 @@ func handleResponseError(w http.ResponseWriter, r *http.Request, err error) {
 		Title:  "Error interno",
 		Status: http.StatusInternalServerError,
 	})
+}
+
+// fromDomainError convierte los errores que los módulos exponen en su
+// contrato en errores con estado HTTP. Los módulos no conocen HTTP; esta es
+// la única traducción. Cualquier otro error se devuelve intacto y termina
+// como 500.
+func fromDomainError(err error) error {
+	switch {
+	case errors.Is(err, service.ErrInvalidInput), errors.Is(err, rag.ErrInvalidInput):
+		return invalidRequest(err.Error())
+	case errors.Is(err, rag.ErrNotFound):
+		return newServiceError("not-found", "Recurso no encontrado", http.StatusNotFound,
+			"No existe un recurso con ese identificador.")
+	case errors.Is(err, rag.ErrDuplicate):
+		return newServiceError("conflict", "Documento duplicado", http.StatusConflict,
+			"Ese contenido ya fue registrado en la colección.")
+	}
+	return err
 }
 
 // handleRequestError responde a fallos de deserialización o validación de la

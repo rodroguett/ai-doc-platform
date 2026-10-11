@@ -10,10 +10,8 @@ import (
 	"mime/multipart"
 	"net/http"
 
-	"github.com/google/uuid"
-
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
-	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
 // Límites de lectura del multipart. El archivo se lee completo en memoria
@@ -26,6 +24,9 @@ const (
 )
 
 func (a *API) CreateDocument(ctx context.Context, req api.CreateDocumentRequestObject) (api.CreateDocumentResponseObject, error) {
+	if a.svc.Documents == nil {
+		return nil, errNoDatabase
+	}
 	if req.Body == nil {
 		return nil, invalidRequest("falta el cuerpo multipart")
 	}
@@ -48,28 +49,96 @@ func (a *API) CreateDocument(ctx context.Context, req api.CreateDocumentRequestO
 	}, nil
 }
 
+func (a *API) GetJob(ctx context.Context, req api.GetJobRequestObject) (api.GetJobResponseObject, error) {
+	if a.svc.Documents == nil {
+		return nil, errNoDatabase
+	}
+	job, err := a.svc.Documents.Job(ctx, req.JobId)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetJob200JSONResponse(toJob(job)), nil
+}
+
+func (a *API) GetDocument(ctx context.Context, req api.GetDocumentRequestObject) (api.GetDocumentResponseObject, error) {
+	if a.svc.Documents == nil {
+		return nil, errNoDatabase
+	}
+	doc, err := a.svc.Documents.Document(ctx, req.DocumentId)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetDocument200JSONResponse(toDocument(doc)), nil
+}
+
+func (a *API) ListDocuments(ctx context.Context, req api.ListDocumentsRequestObject) (api.ListDocumentsResponseObject, error) {
+	if a.svc.Documents == nil {
+		return nil, errNoDatabase
+	}
+
+	var opts rag.ListOptions
+	if req.Params.Collection != nil {
+		opts.Collection = *req.Params.Collection
+	}
+	if req.Params.Cursor != nil {
+		opts.Cursor = *req.Params.Cursor
+	}
+	if req.Params.Limit != nil {
+		opts.Limit = *req.Params.Limit
+		// Cero es "sin valor" para el dominio; enviado de forma explícita
+		// es un límite inválido.
+		if opts.Limit == 0 {
+			return nil, invalidRequest("limit debe ser mayor que cero")
+		}
+	}
+
+	page, err := a.svc.Documents.Documents(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := api.ListDocuments200JSONResponse{
+		Data:       make([]api.Document, 0, len(page.Documents)),
+		NextCursor: optional(page.NextCursor),
+	}
+	for _, doc := range page.Documents {
+		resp.Data = append(resp.Data, toDocument(doc))
+	}
+	return resp, nil
+}
+
+func (a *API) DeleteDocument(ctx context.Context, req api.DeleteDocumentRequestObject) (api.DeleteDocumentResponseObject, error) {
+	if a.svc.Documents == nil {
+		return nil, errNoDatabase
+	}
+	if err := a.svc.Documents.Delete(ctx, req.DocumentId); err != nil {
+		return nil, err
+	}
+	return api.DeleteDocument204Response{}, nil
+}
+
 // readUpload recorre las partes del formulario. Las partes desconocidas se
 // ignoran; las que faltan las detecta la validación del dominio.
-func readUpload(mr *multipart.Reader) (service.Upload, error) {
-	var u service.Upload
+func readUpload(mr *multipart.Reader) (rag.Upload, error) {
+	var u rag.Upload
 	for {
 		part, err := mr.NextPart()
 		if errors.Is(err, io.EOF) {
 			return u, nil
 		}
 		if err != nil {
-			return service.Upload{}, invalidRequest("el cuerpo multipart es inválido")
+			return rag.Upload{}, invalidRequest("el cuerpo multipart es inválido")
 		}
 
 		err = readPart(part, &u)
 		_ = part.Close()
 		if err != nil {
-			return service.Upload{}, err
+			return rag.Upload{}, err
 		}
 	}
 }
 
-func readPart(part *multipart.Part, u *service.Upload) error {
+func readPart(part *multipart.Part, u *rag.Upload) error {
 	switch part.FormName() {
 	case "file":
 		data, err := readLimited(part, maxUploadBytes)
@@ -111,17 +180,29 @@ func readLimited(r io.Reader, max int64) ([]byte, error) {
 	return data, nil
 }
 
-func toJob(j service.Job) api.Job {
-	out := api.Job{
-		Id:        j.ID,
-		Type:      api.JobType(j.Kind),
-		Status:    api.JobStatus(j.Status),
-		Progress:  &j.Progress,
-		Error:     optional(j.Error),
-		CreatedAt: j.CreatedAt,
+func toJob(j rag.Job) api.Job {
+	return api.Job{
+		Id:         j.ID,
+		Type:       api.JobType(j.Kind),
+		Status:     api.JobStatus(j.Status),
+		Progress:   &j.Progress,
+		ResourceId: &j.DocumentID,
+		Error:      optional(j.Error),
+		CreatedAt:  j.CreatedAt,
 	}
-	if j.ResourceID != uuid.Nil {
-		out.ResourceId = &j.ResourceID
+}
+
+func toDocument(d rag.Document) api.Document {
+	out := api.Document{
+		Id:         d.ID,
+		Source:     d.Source,
+		Collection: d.Collection,
+		Status:     api.DocumentStatus(d.Status),
+		ChunkCount: &d.ChunkCount,
+		CreatedAt:  d.CreatedAt,
+	}
+	if len(d.Metadata) > 0 {
+		out.Metadata = &d.Metadata
 	}
 	return out
 }
