@@ -14,10 +14,13 @@ type Server struct {
 
 	// writeToken es el sha256 del token de escritura, o nil si no hay.
 	writeToken []byte
+
+	readiness    []readinessCheck
+	readyTimeout time.Duration
 }
 
 func NewServer(svc Services, opts ...Option) *Server {
-	s := &Server{mux: http.NewServeMux(), svc: svc}
+	s := &Server{mux: http.NewServeMux(), svc: svc, readyTimeout: defaultReadyTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -30,7 +33,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
+	// Ni /health ni /ready terminan en "z": Cloud Run intercepta esas rutas
+	// antes de que lleguen al contenedor.
 	s.mux.HandleFunc("GET /health", s.handleHealth)
+	s.mux.HandleFunc("GET /ready", s.handleReady)
 
 	// La documentación queda fuera de /v1: describe la API, no es parte de
 	// ella, y no debe cambiar de ruta cuando la API cambie de versión.

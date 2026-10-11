@@ -34,6 +34,8 @@ func run() error {
 
 	cfg := config.Load()
 
+	options := []gateway.Option{gateway.WithWriteToken(cfg.WriteToken)}
+
 	services := gateway.Services{
 		// Datos de ejemplo hasta que exista la búsqueda.
 		Queries: service.ExampleQueries{},
@@ -59,6 +61,7 @@ func run() error {
 		slog.Info("base de datos lista", "migraciones_aplicadas", applied)
 
 		services.Documents = rag.NewService(store.New(pool))
+		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}
 
 	if cfg.WriteToken == "" {
@@ -67,7 +70,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           gateway.NewServer(services, gateway.WithWriteToken(cfg.WriteToken)),
+		Handler:           gateway.NewServer(services, options...),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

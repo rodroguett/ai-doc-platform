@@ -61,12 +61,18 @@ jobs:
             --port=8080
             --timeout=30s
 
+      # /health prueba que la revisión nueva arrancó; /ready, que además
+      # alcanza sus dependencias. Un fallo aquí marca el despliegue en rojo
+      # pero no lo revierte: la revisión ya está recibiendo tráfico.
       - name: Smoke test
         run: |
-          for i in {1..5}; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.url }}/health")
-            [ "$code" = "200" ] && echo "healthy at ${{ steps.deploy.outputs.url }}" && exit 0
-            echo "attempt $i returned $code, retrying"
-            sleep 5
+          for path in health ready; do
+            ok=""
+            for i in {1..5}; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.url }}/$path")
+              [ "$code" = "200" ] && echo "/$path ok" && ok=1 && break
+              echo "/$path attempt $i returned $code, retrying"
+              sleep 5
+            done
+            [ -n "$ok" ] || exit 1
           done
-          exit 1
