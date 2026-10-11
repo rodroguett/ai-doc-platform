@@ -224,6 +224,7 @@ bien no es un registro, es publicidad.
 - [ADR-0005](docs/adr/0005-monolito-modular.md) — Construir como monolito modular antes de extraer servicios
 - [ADR-0006](docs/adr/0006-postgres-pgvector.md) — Persistir en Postgres con pgvector y migrar al arrancar
 - [ADR-0007](docs/adr/0007-token-de-escritura.md) — Proteger las escrituras con un token único
+- [ADR-0008](docs/adr/0008-embeddings-gemini.md) — Generar los embeddings con Gemini en su capa gratuita
 
 ## Contribuir
 
