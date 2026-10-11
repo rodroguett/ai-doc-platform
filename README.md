@@ -199,6 +199,12 @@ El runtime es una imagen distroless de unos 14 MB, sin shell ni gestor de
 paquetes, ejecutando como usuario no privilegiado. El servicio escala a cero
 cuando no hay tráfico, con un tope de tres instancias como límite de gasto.
 
+El servicio expone `/health`, que indica que el proceso está vivo, y `/ready`,
+que verifica además que sus dependencias respondan y detalla el estado de cada
+una. El despliegue comprueba ambos. Las rutas no llevan la `z` final de la
+convención de Kubernetes porque Cloud Run intercepta las rutas que terminan
+así.
+
 La base de datos es Postgres con pgvector en el plan gratuito de Neon, que
 también suspende su cómputo sin actividad. La cadena de conexión vive en
 Secret Manager; el binario aplica las migraciones pendientes al arrancar y no

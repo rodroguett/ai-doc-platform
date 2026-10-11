@@ -30,6 +30,9 @@ contra el código y contra `gh issue list`.
   Los endpoints de documentos y trabajos operan sobre Postgres a través de
   `rag.Service`; `POST /v1/queries` responde con datos de ejemplo y
   `GET /v1/usage` devuelve 501. Los errores respetan RFC 9457.
+- `/health` indica que el proceso está vivo y `/ready` verifica las
+  dependencias (hoy, la base de datos). No usar rutas terminadas en `z`:
+  Cloud Run las intercepta.
 - El contrato se sirve en `/openapi.yaml` y Swagger UI en `/docs`, ambos
   fuera de `/v1`. Swagger UI se carga desde un CDN con versión y hash de
   integridad fijos en `internal/gateway/swagger.html`.
