@@ -1,6 +1,12 @@
-package service
+// Package orchestrator responde consultas sobre el corpus: recupera los
+// pasajes que sustentan una respuesta y los devuelve como citas.
+//
+// El paquete raíz es el contrato del módulo (ADR-0005): los tipos de una
+// consulta y de su respuesta, y los errores que quien llama puede distinguir.
+package orchestrator
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,8 +15,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// Límites de una consulta. Coinciden con los declarados en el contrato, pero
-// se validan aquí porque son reglas del dominio: una pregunta vacía no tiene
+var (
+	// ErrInvalidInput indica que la consulta no cumple las reglas del
+	// dominio. Los errores que lo envuelven llevan un mensaje apto para el
+	// cliente.
+	ErrInvalidInput = errors.New("entrada inválida")
+
+	// ErrUnavailable indica que una dependencia externa no respondió. La
+	// misma consulta puede funcionar más tarde.
+	ErrUnavailable = errors.New("no disponible por ahora")
+
+	// ErrQuotaExhausted indica que se alcanzó el tope diario de consultas
+	// nuevas. Las ya respondidas siguen disponibles desde la caché.
+	ErrQuotaExhausted = errors.New("tope diario de consultas alcanzado")
+)
+
+// Límites de una consulta. Coinciden con los del contrato HTTP, pero se
+// validan aquí porque son reglas del dominio: una pregunta vacía no tiene
 // respuesta posible, llegue por HTTP o por cualquier otro camino.
 const (
 	minQuestionLen = 3
@@ -52,6 +73,7 @@ func (q Query) Normalize() (Query, error) {
 		return Query{}, fmt.Errorf("%w: la pregunta debe tener entre %d y %d caracteres",
 			ErrInvalidInput, minQuestionLen, maxQuestionLen)
 	}
+	q.Collection = strings.TrimSpace(q.Collection)
 
 	if q.TopK == 0 {
 		q.TopK = defaultTopK
@@ -80,7 +102,7 @@ type Answer struct {
 	Trace     Trace
 }
 
-// Citation identifica el fragmento de un documento que sustenta la respuesta.
+// Citation identifica el pasaje de un documento que sustenta la respuesta.
 type Citation struct {
 	ChunkID    uuid.UUID
 	DocumentID uuid.UUID
@@ -92,11 +114,15 @@ type Citation struct {
 
 // Trace describe cómo se produjo una respuesta.
 type Trace struct {
-	ID        string
-	Provider  string
-	Model     string
-	Cache     CacheStatus
-	Degraded  bool
+	ID       string
+	Provider string
+	Model    string
+	Cache    CacheStatus
+
+	// Degraded indica que la respuesta no la redactó un modelo: se
+	// entregan los pasajes recuperados sin texto generado.
+	Degraded bool
+
 	Tokens    TokenUsage
 	CostUSD   float64
 	Latency   Latency
@@ -116,7 +142,7 @@ type Latency struct {
 	Generation time.Duration
 }
 
-// RetrievedChunk es un fragmento recuperado, se haya citado o no.
+// RetrievedChunk es un pasaje recuperado, se haya citado o no.
 type RetrievedChunk struct {
 	ChunkID uuid.UUID
 	Score   float64

@@ -33,6 +33,15 @@ paths:
     post:
       tags: [queries]
       summary: Ejecuta una consulta semántica
+      description: |
+        Recupera los pasajes del corpus que mejor responden a la pregunta y
+        los devuelve como citas, con su documento y su ubicación. Un pasaje
+        que no alcanza un puntaje mínimo de relación con la pregunta no se
+        cita; si ninguno lo alcanza, la respuesta lo dice y no trae citas.
+
+        Cuando ningún modelo redactó la respuesta, `answer` lo indica y la
+        traza lleva `degraded: true`: se entregan los pasajes para que los
+        lea quien consulta.
       operationId: createQuery
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -363,7 +372,8 @@ components:
           description: Identificador OpenTelemetry
         provider:
           type: string
-          examples: ['ollama']
+          description: Proveedor que redactó la respuesta, o `none` si ninguno
+          examples: ['none']
         model:
           type: string
         cache:

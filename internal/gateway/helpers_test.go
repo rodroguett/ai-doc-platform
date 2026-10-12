@@ -14,17 +14,19 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
-// newExampleServer arma el servidor con el servicio real de rag sobre un
-// almacén en memoria: los tests del gateway ejercitan la validación y la
-// paginación verdaderas sin necesitar una base de datos.
+// newExampleServer arma el servidor con los servicios reales de rag y de
+// orchestrator sobre un almacén en memoria: los tests del gateway ejercitan
+// la validación, la paginación y el armado de citas verdaderos sin necesitar
+// una base de datos ni un proveedor de embeddings.
 func newExampleServer() *Server {
+	documents := newDocuments(fakeExtractor{}, fakeEmbedder{})
 	return NewServer(Services{
-		Queries:   service.ExampleQueries{},
-		Documents: newDocuments(fakeExtractor{}, fakeEmbedder{}),
+		Queries:   orchestrator.NewService(orchestrator.Config{Retriever: documents}),
+		Documents: documents,
 	}, WithWriteToken(testToken))
 }
 
@@ -44,6 +46,10 @@ func (fakeEmbedder) EmbedDocuments(_ context.Context, texts []string) ([][]float
 		out[i] = []float32{1, 0}
 	}
 	return out, nil
+}
+
+func (fakeEmbedder) EmbedQuery(context.Context, string) ([]float32, error) {
+	return []float32{1, 0}, nil
 }
 
 func (fakeEmbedder) Model() string { return "modelo-de-prueba" }
@@ -260,6 +266,36 @@ func (m *memStore) ListDocuments(_ context.Context, collection string, after *ra
 	return docs, nil
 }
 
+// Search devuelve, sin mirar el vector, los fragmentos con embedding de los
+// documentos listos, en el orden en que se subieron y con puntajes que bajan.
+func (m *memStore) Search(_ context.Context, _ []float32, _ string, opts rag.SearchOptions) ([]rag.Passage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var docs []rag.Document
+	for _, d := range m.docs {
+		if d.Status == rag.DocumentReady && (opts.Collection == "" || d.Collection == opts.Collection) {
+			docs = append(docs, d)
+		}
+	}
+	sort.Slice(docs, func(i, j int) bool { return docs[i].CreatedAt.Before(docs[j].CreatedAt) })
+
+	var out []rag.Passage
+	for _, d := range docs {
+		for _, c := range m.chunks[d.ID] {
+			if !m.embedded[c.ID] || len(out) == opts.TopK {
+				continue
+			}
+			out = append(out, rag.Passage{
+				ChunkID: c.ID, DocumentID: d.ID, Source: d.Source,
+				Section: "Considerando 7", PageStart: c.PageStart, PageEnd: c.PageEnd + 1,
+				Text: c.Text, Score: 0.9 - 0.1*float64(len(out)),
+			})
+		}
+	}
+	return out, nil
+}
+
 func (m *memStore) DeleteDocument(_ context.Context, id uuid.UUID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -275,11 +311,11 @@ func (m *memStore) DeleteDocument(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// failingQueries simula una dependencia que falla con un error interno.
+// failingQueries simula una dependencia que falla con el error dado.
 type failingQueries struct{ err error }
 
-func (f failingQueries) Answer(context.Context, service.Query) (service.Answer, error) {
-	return service.Answer{}, f.err
+func (f failingQueries) Answer(context.Context, orchestrator.Query) (orchestrator.Answer, error) {
+	return orchestrator.Answer{}, f.err
 }
 
 func serve(t *testing.T, s *Server, req *http.Request) *httptest.ResponseRecorder {

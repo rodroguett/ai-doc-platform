@@ -38,6 +38,9 @@ const (
 	runBatchSize = 8
 
 	cleanupTimeout = 10 * time.Second
+
+	// maxSearchResults acota cuántos pasajes puede pedir una búsqueda.
+	maxSearchResults = 50
 )
 
 // metadataSource es la clave de los metadatos con la que quien sube un
@@ -84,6 +87,10 @@ type Store interface {
 
 	// FinishJob cierra el trabajo y deja a su documento listo o fallido.
 	FinishJob(ctx context.Context, id uuid.UUID, status JobStatus, message string) (Job, error)
+
+	// Search devuelve los pasajes más parecidos al vector, del más al menos
+	// parecido, entre los de documentos listos cuyo vector produjo model.
+	Search(ctx context.Context, vector []float32, model string, opts SearchOptions) ([]Passage, error)
 }
 
 // TextExtractor obtiene el texto de un documento, página por página. Un
@@ -100,6 +107,10 @@ type Splitter func(pages []PageText) []Chunk
 // rag necesita, definida aquí porque rag es quien la consume.
 type Embedder interface {
 	EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error)
+
+	// EmbedQuery convierte una consulta. El modelo distingue una consulta
+	// de un pasaje.
+	EmbedQuery(ctx context.Context, text string) ([]float32, error)
 
 	// Model identifica al modelo; se guarda junto a cada vector.
 	Model() string
@@ -348,6 +359,42 @@ func (s *Service) RunJob(ctx context.Context, id uuid.UUID) (Job, error) {
 			return Job{}, err
 		}
 	}
+}
+
+// Search devuelve los pasajes del corpus más parecidos a la consulta.
+//
+// La consulta se convierte en vector aquí, con el mismo modelo que produjo
+// los vectores guardados, y solo se compara contra los de ese modelo: los de
+// otro viven en otro espacio y su parecido no significaría nada.
+//
+// Devuelve ErrUnavailable si el proveedor de embeddings no responde.
+func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) ([]Passage, error) {
+	if s.embedder == nil {
+		return nil, fmt.Errorf("%w: los embeddings no están configurados", ErrUnavailable)
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, fmt.Errorf("%w: la consulta está vacía", ErrInvalidInput)
+	}
+	if opts.TopK < 1 || opts.TopK > maxSearchResults {
+		return nil, fmt.Errorf("%w: la cantidad de pasajes debe estar entre 1 y %d", ErrInvalidInput, maxSearchResults)
+	}
+	opts.Collection = strings.TrimSpace(opts.Collection)
+
+	vector, err := s.embedder.EmbedQuery(ctx, query)
+	switch {
+	case err == nil:
+	case ctx.Err() != nil:
+		return nil, ctx.Err()
+	case errors.Is(err, llmgw.ErrInvalidInput):
+		return nil, fmt.Errorf("%w: el proveedor de embeddings rechazó la consulta", ErrInvalidInput)
+	default:
+		// Agotados los reintentos, o mal configurado: en ambos casos quien
+		// consulta no puede hacer nada, salvo reintentar más tarde.
+		return nil, fmt.Errorf("%w: el proveedor de embeddings no responde", ErrUnavailable)
+	}
+
+	return s.store.Search(ctx, vector, s.embedder.Model(), opts)
 }
 
 // embeddingInput es el texto de un fragmento que se convierte en vector.
