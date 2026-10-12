@@ -6,13 +6,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
-	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
 // QueryService responde consultas sobre el corpus.
 type QueryService interface {
-	Answer(ctx context.Context, q service.Query) (service.Answer, error)
+	Answer(ctx context.Context, q orchestrator.Query) (orchestrator.Answer, error)
 }
 
 // DocumentService registra y consulta documentos y sus trabajos de ingesta.
@@ -31,8 +31,8 @@ type DocumentService interface {
 // una interfaz definida aquí, del lado de quien la consume, y la implementa
 // otro módulo.
 //
-// Documents puede ser nil: sin base de datos configurada, los endpoints de
-// documentos y trabajos responden 503.
+// Ambas pueden ser nil: sin base de datos configurada, los endpoints que
+// dependen de ellas responden 503.
 type Services struct {
 	Queries   QueryService
 	Documents DocumentService

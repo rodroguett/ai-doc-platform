@@ -6,10 +6,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
-	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
 )
 
 func (a *API) CreateQuery(ctx context.Context, req api.CreateQueryRequestObject) (api.CreateQueryResponseObject, error) {
+	if a.svc.Queries == nil {
+		return nil, errNoDatabase
+	}
 	if req.Body == nil {
 		return nil, invalidRequest("falta el cuerpo de la consulta")
 	}
@@ -27,8 +30,8 @@ func (a *API) CreateQuery(ctx context.Context, req api.CreateQueryRequestObject)
 	}, nil
 }
 
-func toQuery(r api.QueryRequest) service.Query {
-	q := service.Query{Question: r.Question}
+func toQuery(r api.QueryRequest) orchestrator.Query {
+	q := orchestrator.Query{Question: r.Question}
 	if r.Collection != nil {
 		q.Collection = *r.Collection
 	}
@@ -39,12 +42,12 @@ func toQuery(r api.QueryRequest) service.Query {
 		q.Filters = *r.Filters
 	}
 	if r.Trace != nil {
-		q.Trace = service.TraceLevel(*r.Trace)
+		q.Trace = orchestrator.TraceLevel(*r.Trace)
 	}
 	return q
 }
 
-func toQueryResponse(a service.Answer) api.QueryResponse {
+func toQueryResponse(a orchestrator.Answer) api.QueryResponse {
 	resp := api.QueryResponse{
 		QueryId:   a.ID,
 		Answer:    a.Text,
@@ -64,7 +67,7 @@ func toQueryResponse(a service.Answer) api.QueryResponse {
 	return resp
 }
 
-func toTrace(t service.Trace) api.Trace {
+func toTrace(t orchestrator.Trace) api.Trace {
 	out := api.Trace{
 		TraceId:  t.ID,
 		Provider: t.Provider,

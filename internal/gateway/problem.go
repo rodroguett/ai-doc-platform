@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
@@ -41,12 +41,13 @@ func newServiceError(kind, title string, status int, detail string) *serviceErro
 	return &serviceError{kind: kind, title: title, status: status, detail: detail}
 }
 
-// errNoDatabase se devuelve cuando el proceso corre sin base de datos.
+// errNoDatabase se devuelve cuando el proceso corre sin lo necesario para
+// atender la operación: sin base de datos, o sin proveedor de embeddings.
 var errNoDatabase = newServiceError(
 	"unavailable",
 	"Servicio no disponible",
 	http.StatusServiceUnavailable,
-	"El almacenamiento de documentos no está configurado en esta instancia.",
+	"Esta instancia no tiene configurado lo necesario para atender la operación.",
 )
 
 // errUploadInProgress se devuelve cuando ya hay una subida en curso.
@@ -114,15 +115,18 @@ func handleResponseError(w http.ResponseWriter, r *http.Request, err error) {
 // como 500.
 func fromDomainError(err error) error {
 	switch {
-	case errors.Is(err, service.ErrInvalidInput), errors.Is(err, rag.ErrInvalidInput):
+	case errors.Is(err, orchestrator.ErrInvalidInput), errors.Is(err, rag.ErrInvalidInput):
 		return invalidRequest(err.Error())
+	case errors.Is(err, orchestrator.ErrQuotaExhausted):
+		return newServiceError("quota-exhausted", "Tope diario alcanzado", http.StatusTooManyRequests,
+			"Se alcanzó el tope diario de consultas nuevas. Las preguntas ya respondidas siguen disponibles; las nuevas, mañana.")
 	case errors.Is(err, rag.ErrNotFound):
 		return newServiceError("not-found", "Recurso no encontrado", http.StatusNotFound,
 			"No existe un recurso con ese identificador.")
 	case errors.Is(err, rag.ErrDuplicate):
 		return newServiceError("conflict", "Documento duplicado", http.StatusConflict,
 			"Ese contenido ya fue registrado en la colección.")
-	case errors.Is(err, rag.ErrUnavailable):
+	case errors.Is(err, rag.ErrUnavailable), errors.Is(err, orchestrator.ErrUnavailable):
 		return newServiceError("unavailable", "Servicio no disponible", http.StatusServiceUnavailable,
 			"Una dependencia externa no responde. Reintente más tarde.")
 	}

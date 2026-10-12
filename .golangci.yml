@@ -38,13 +38,6 @@ linters:
             - pkg: github.com/rodroguett/ai-doc-platform/internal/llmgw
               desc: el gateway no depende de llmgw (ADR-0005)
 
-        gateway-domain:
-          list-mode: lax
-          files: ["**/internal/gateway/service/**"]
-          deny:
-            - pkg: github.com/rodroguett/ai-doc-platform/internal/gateway/api
-              desc: el dominio no conoce los tipos generados desde el contrato
-
         orchestrator:
           list-mode: lax
           files: ["**/internal/orchestrator/**"]

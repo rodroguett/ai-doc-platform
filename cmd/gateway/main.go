@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway"
-	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
 	"github.com/rodroguett/ai-doc-platform/internal/llmgw/gemini"
+	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/config"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
@@ -40,10 +40,7 @@ func run() error {
 
 	options := []gateway.Option{gateway.WithWriteToken(cfg.WriteToken)}
 
-	services := gateway.Services{
-		// Datos de ejemplo hasta que exista la búsqueda.
-		Queries: service.ExampleQueries{},
-	}
+	var services gateway.Services
 
 	// Sin base de datos configurada el proceso arranca igual y los endpoints
 	// de documentos responden 503. Con ella, un fallo al conectar o migrar
@@ -104,6 +101,12 @@ func run() error {
 			local.Start(documents.RunJob)
 		}
 		services.Documents = documents
+
+		// Las consultas necesitan convertir la pregunta en vector: sin
+		// proveedor de embeddings no hay cómo buscar.
+		if deps.Embedder != nil {
+			services.Queries = orchestrator.NewService(orchestrator.Config{Retriever: documents})
+		}
 		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}
 

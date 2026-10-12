@@ -236,7 +236,9 @@ type Trace struct {
 	} `json:"latency_ms"`
 	Model string `json:"model"`
 
-	// Provider Examples: ollama
+	// Provider Proveedor que redactó la respuesta, o `none` si ninguno
+	//
+	// Examples: none
 	Provider string `json:"provider"`
 
 	// Retrieved Solo presente con trace=full
