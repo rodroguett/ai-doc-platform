@@ -124,7 +124,7 @@ necesita.
   WebAssembly lo atenúa, no lo elimina.
 - **Los tests que usan el motor tardan cerca de un minuto cada paquete con
   el detector de carreras**, contra cinco segundos sin él. La verificación
-  en CI pasa de uno a dos minutos.
+  en CI pasó de uno a tres minutos.
 - **Un documento escaneado se rechaza.** Una RCA antigua, anterior a la
   firma electrónica, no puede ingerirse.
 - **El rechazo de escaneos está probado con un PDF sintético sin texto**,

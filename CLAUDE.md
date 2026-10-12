@@ -123,7 +123,7 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 make run                 # levanta el gateway en :8080, sin base de datos
 make run-db              # lo mismo, con un Postgres local en Docker
 make test                # tests con detector de carrera; requiere Docker.
-                         # Tarda unos dos minutos por los tests de PDF
+                         # Tarda uno o dos minutos por los tests de PDF
 make db-down             # elimina el Postgres local
 make lint                # golangci-lint
 make generate            # regenera el código desde el contrato
