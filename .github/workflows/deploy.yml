@@ -53,6 +53,11 @@ jobs:
             DATABASE_URL=database-url:latest
             API_WRITE_TOKEN=api-write-token:latest
             GEMINI_API_KEY=gemini-api-key:latest
+          # Cloud Tasks despacha los trabajos de ingesta invocando a este
+          # mismo servicio, así que necesita su dirección pública.
+          env_vars: |-
+            CLOUD_TASKS_QUEUE=projects/${{ vars.GCP_PROJECT_ID }}/locations/${{ vars.GCP_REGION }}/queues/ingest
+            SERVICE_URL=https://gateway-w46qaen3gq-uc.a.run.app
           # Una sola instancia: acota el costo en el peor caso y hace exacto
           # el límite de peticiones, que vive en memoria.
           # 512 MiB: el motor de extracción de PDF reserva unos 310 y una

@@ -24,9 +24,29 @@ import (
 func newExampleServer() *Server {
 	return NewServer(Services{
 		Queries:   service.ExampleQueries{},
-		Documents: rag.NewService(newMemStore(), fakeExtractor{}, onePerPage),
+		Documents: newDocuments(fakeExtractor{}, fakeEmbedder{}),
 	}, WithWriteToken(testToken))
 }
+
+// newDocuments arma el servicio real de rag sobre el almacén en memoria. No
+// lleva despachador: los tests ejecutan los trabajos invocando la operación,
+// como lo haría la cola.
+func newDocuments(extractor rag.TextExtractor, embedder rag.Embedder) *rag.Service {
+	return rag.NewService(rag.Deps{Store: newMemStore(), Extractor: extractor, Split: onePerPage, Embedder: embedder})
+}
+
+// fakeEmbedder devuelve un vector fijo por texto.
+type fakeEmbedder struct{}
+
+func (fakeEmbedder) EmbedDocuments(_ context.Context, texts []string) ([][]float32, error) {
+	out := make([][]float32, len(texts))
+	for i := range out {
+		out[i] = []float32{1, 0}
+	}
+	return out, nil
+}
+
+func (fakeEmbedder) Model() string { return "modelo-de-prueba" }
 
 // fakeExtractor reemplaza al motor de PDF. Trata el contenido como el texto
 // de una sola página, y reproduce los dos rechazos del extractor real: un
@@ -78,17 +98,23 @@ func authorize(req *http.Request) *http.Request {
 // memStore es un rag.Store en memoria con el mismo comportamiento observable
 // que el de Postgres.
 type memStore struct {
-	mu   sync.Mutex
-	docs map[uuid.UUID]rag.Document
-	jobs map[uuid.UUID]rag.Job
-	now  time.Time
+	mu       sync.Mutex
+	docs     map[uuid.UUID]rag.Document
+	jobs     map[uuid.UUID]rag.Job
+	chunks   map[uuid.UUID][]rag.Chunk // por documento
+	embedded map[uuid.UUID]bool        // por fragmento
+	locked   map[uuid.UUID]bool        // por trabajo
+	now      time.Time
 }
 
 func newMemStore() *memStore {
 	return &memStore{
-		docs: map[uuid.UUID]rag.Document{},
-		jobs: map[uuid.UUID]rag.Job{},
-		now:  time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
+		docs:     map[uuid.UUID]rag.Document{},
+		jobs:     map[uuid.UUID]rag.Job{},
+		chunks:   map[uuid.UUID][]rag.Chunk{},
+		embedded: map[uuid.UUID]bool{},
+		locked:   map[uuid.UUID]bool{},
+		now:      time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
 	}
 }
 
@@ -118,7 +144,79 @@ func (m *memStore) CreateDocument(_ context.Context, doc rag.Document, job rag.J
 	doc.Status, doc.CreatedAt, doc.ChunkCount = rag.DocumentPending, m.now, len(chunks)
 	job.Status, job.DocumentID, job.CreatedAt, job.UpdatedAt = rag.JobQueued, doc.ID, m.now, m.now
 	m.docs[doc.ID], m.jobs[job.ID] = doc, job
+	m.chunks[doc.ID] = chunks
 	return doc, job, nil
+}
+
+func (m *memStore) ClaimJob(_ context.Context, id uuid.UUID, _ time.Duration) (rag.Job, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	job, ok := m.jobs[id]
+	if !ok {
+		return rag.Job{}, false, rag.ErrNotFound
+	}
+	finished := job.Status == rag.JobSucceeded || job.Status == rag.JobFailed
+	if finished || m.locked[id] {
+		return job, false, nil
+	}
+	job.Status, m.locked[id] = rag.JobRunning, true
+	m.jobs[id] = job
+	doc := m.docs[job.DocumentID]
+	doc.Status = rag.DocumentProcessing
+	m.docs[doc.ID] = doc
+	return job, true, nil
+}
+
+func (m *memStore) ReleaseJob(_ context.Context, id uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.locked, id)
+	return nil
+}
+
+func (m *memStore) PendingChunks(_ context.Context, documentID uuid.UUID, limit int) ([]rag.Chunk, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []rag.Chunk
+	for _, c := range m.chunks[documentID] {
+		if !m.embedded[c.ID] && len(out) < limit {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (m *memStore) SaveEmbeddings(_ context.Context, jobID uuid.UUID, _ string, embeddings []rag.ChunkEmbedding) (rag.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range embeddings {
+		m.embedded[e.ChunkID] = true
+	}
+	job := m.jobs[jobID]
+	done, all := 0, m.chunks[job.DocumentID]
+	for _, c := range all {
+		if m.embedded[c.ID] {
+			done++
+		}
+	}
+	job.Progress = done * 100 / len(all)
+	m.jobs[jobID] = job
+	return job, nil
+}
+
+func (m *memStore) FinishJob(_ context.Context, id uuid.UUID, status rag.JobStatus, message string) (rag.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	job := m.jobs[id]
+	job.Status, job.Error = status, message
+	doc := m.docs[job.DocumentID]
+	doc.Status = rag.DocumentFailed
+	if status == rag.JobSucceeded {
+		job.Progress, doc.Status = 100, rag.DocumentReady
+	}
+	m.jobs[id], m.docs[doc.ID] = job, doc
+	delete(m.locked, id)
+	return job, nil
 }
 
 func (m *memStore) Document(_ context.Context, id uuid.UUID) (rag.Document, error) {

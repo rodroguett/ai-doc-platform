@@ -12,10 +12,12 @@ import (
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway"
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/service"
+	"github.com/rodroguett/ai-doc-platform/internal/llmgw/gemini"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/config"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 	"github.com/rodroguett/ai-doc-platform/internal/rag/chunk"
+	"github.com/rodroguett/ai-doc-platform/internal/rag/dispatch"
 	"github.com/rodroguett/ai-doc-platform/internal/rag/pdftext"
 	"github.com/rodroguett/ai-doc-platform/internal/rag/store"
 )
@@ -66,7 +68,42 @@ func run() error {
 		extractor := pdftext.New()
 		defer func() { _ = extractor.Close() }()
 
-		services.Documents = rag.NewService(store.New(pool), extractor, chunk.Split)
+		deps := rag.Deps{Store: store.New(pool), Extractor: extractor, Split: chunk.Split}
+
+		// Sin clave no hay embeddings: los documentos se registran con sus
+		// fragmentos y sus trabajos quedan en cola.
+		var local *dispatch.InProcess
+		if cfg.GeminiAPIKey == "" {
+			slog.Warn("GEMINI_API_KEY no está definida; los trabajos de ingesta quedan en cola")
+		} else {
+			embedder, err := gemini.New(gemini.Config{APIKey: cfg.GeminiAPIKey})
+			if err != nil {
+				return err
+			}
+			deps.Embedder = embedder
+
+			if cfg.TasksQueue != "" {
+				dispatcher, err := newTasksDispatcher(cfg)
+				if err != nil {
+					return err
+				}
+				deps.Dispatcher = dispatcher
+				slog.Info("los trabajos se despachan con Cloud Tasks", "cola", cfg.TasksQueue)
+			} else {
+				// Fuera de Cloud Run el proceso tiene CPU todo el tiempo y
+				// puede ejecutar los trabajos por sí mismo.
+				local = dispatch.NewInProcess()
+				defer local.Stop()
+				deps.Dispatcher = local
+				slog.Info("los trabajos se ejecutan dentro del proceso")
+			}
+		}
+
+		documents := rag.NewService(deps)
+		if local != nil {
+			local.Start(documents.RunJob)
+		}
+		services.Documents = documents
 		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}
 

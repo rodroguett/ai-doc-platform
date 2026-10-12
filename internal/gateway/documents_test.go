@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -301,7 +302,7 @@ func TestCreateDocumentOneAtATime(t *testing.T) {
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	s := NewServer(Services{
-		Documents: rag.NewService(newMemStore(), fakeExtractor{hold: release, started: started}, onePerPage),
+		Documents: newDocuments(fakeExtractor{hold: release, started: started}, fakeEmbedder{}),
 	}, WithWriteToken(testToken))
 
 	first := make(chan *httptest.ResponseRecorder, 1)
@@ -330,5 +331,93 @@ func TestCreateDocumentOneAtATime(t *testing.T) {
 	rec = postDocument(t, s, map[string]string{"file": "%PDF-1.7 tercero", "collection": "rca"})
 	if rec.Code != http.StatusAccepted {
 		t.Errorf("tras liberar: got status %d, want %d; body: %s", rec.Code, http.StatusAccepted, rec.Body)
+	}
+}
+
+func runJob(t *testing.T, s *Server, jobID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return do(t, s, http.MethodPost, "/v1/jobs/"+jobID+"/run")
+}
+
+// Ejecutar el trabajo genera los embeddings y deja el documento listo. Es lo
+// que hace la cola después de cada subida.
+func TestRunJobCompletesIngestion(t *testing.T) {
+	s := newExampleServer()
+	job := upload(t, s, "%PDF-1.7 contenido", "rca")
+	if job.Status != "queued" {
+		t.Fatalf("recién subido: got estado %q, want queued", job.Status)
+	}
+
+	var ran api.Job
+	decodeJSON(t, runJob(t, s, job.Id.String()), http.StatusOK, &ran)
+	if ran.Status != "succeeded" || ran.Progress == nil || *ran.Progress != 100 {
+		t.Errorf("tras ejecutar: got %s con avance %v, want succeeded al 100", ran.Status, ran.Progress)
+	}
+
+	var doc api.Document
+	decodeJSON(t, do(t, s, http.MethodGet, "/v1/documents/"+job.ResourceId.String()), http.StatusOK, &doc)
+	if doc.Status != "ready" {
+		t.Errorf("got documento %q, want ready", doc.Status)
+	}
+
+	// Ejecutarlo de nuevo es inofensivo: devuelve el mismo estado.
+	var again api.Job
+	decodeJSON(t, runJob(t, s, job.Id.String()), http.StatusOK, &again)
+	if again.Status != "succeeded" {
+		t.Errorf("segunda ejecución: got %q, want succeeded", again.Status)
+	}
+}
+
+func TestRunJobRequiresToken(t *testing.T) {
+	s := newExampleServer()
+	job := upload(t, s, "%PDF-1.7 contenido", "rca")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/jobs/"+job.Id.String()+"/run", nil)
+	decodeProblem(t, serve(t, s, req), http.StatusUnauthorized)
+
+	// Sin token el trabajo no se ejecutó.
+	var got api.Job
+	decodeJSON(t, do(t, s, http.MethodGet, "/v1/jobs/"+job.Id.String()), http.StatusOK, &got)
+	if got.Status != "queued" {
+		t.Errorf("got estado %q, want queued", got.Status)
+	}
+}
+
+func TestRunJobUnknown(t *testing.T) {
+	decodeProblem(t, runJob(t, newExampleServer(), uuid.NewString()), http.StatusNotFound)
+}
+
+// unavailableRuns hace que ejecutar un trabajo falle como cuando el
+// proveedor de embeddings no responde.
+type unavailableRuns struct{ DocumentService }
+
+func (unavailableRuns) RunJob(context.Context, uuid.UUID) (rag.Job, error) {
+	return rag.Job{}, fmt.Errorf("%w: el proveedor de embeddings no responde", rag.ErrUnavailable)
+}
+
+// El 503 es lo que hace que la cola reintente la pasada más tarde.
+func TestRunJobReportsUnavailableProvider(t *testing.T) {
+	s := NewServer(Services{
+		Documents: unavailableRuns{newDocuments(fakeExtractor{}, fakeEmbedder{})},
+	}, WithWriteToken(testToken))
+
+	p := decodeProblem(t, runJob(t, s, uuid.NewString()), http.StatusServiceUnavailable)
+	if !strings.HasSuffix(p.Type, "/unavailable") {
+		t.Errorf("got type %q, want unavailable", p.Type)
+	}
+}
+
+// Sin proveedor de embeddings configurado el trabajo no puede ejecutarse, y
+// queda en cola en lugar de fallar.
+func TestRunJobWithoutEmbedder(t *testing.T) {
+	s := NewServer(Services{Documents: newDocuments(fakeExtractor{}, nil)}, WithWriteToken(testToken))
+	job := upload(t, s, "%PDF-1.7 contenido", "rca")
+
+	decodeProblem(t, runJob(t, s, job.Id.String()), http.StatusServiceUnavailable)
+
+	var got api.Job
+	decodeJSON(t, do(t, s, http.MethodGet, "/v1/jobs/"+job.Id.String()), http.StatusOK, &got)
+	if got.Status != "queued" {
+		t.Errorf("got estado %q, want queued", got.Status)
 	}
 }

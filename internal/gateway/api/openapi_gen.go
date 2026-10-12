@@ -360,6 +360,9 @@ type ServerInterface interface {
 	// GetJob Consulta el estado de un trabajo asíncrono
 	// (GET /jobs/{jobId})
 	GetJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID)
+	// RunJob Ejecuta una pasada de un trabajo
+	// (POST /jobs/{jobId}/run)
+	RunJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID)
 	// CreateQuery Ejecuta una consulta semántica
 	// (POST /queries)
 	CreateQuery(w http.ResponseWriter, r *http.Request, params CreateQueryParams)
@@ -546,6 +549,32 @@ func (siw *ServerInterfaceWrapper) GetJob(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetJob(w, r, jobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RunJob operation middleware
+func (siw *ServerInterfaceWrapper) RunJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", r.PathValue("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RunJob(w, r, jobId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -768,6 +797,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/documents/{documentId}", wrapper.DeleteDocument)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/documents/{documentId}", wrapper.GetDocument)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/jobs/{jobId}", wrapper.GetJob)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/jobs/{jobId}/run", wrapper.RunJob)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/usage", wrapper.GetUsage)
 
 	return m
@@ -1155,6 +1185,96 @@ func (response GetJob429ApplicationProblemPlusJSONResponse) VisitGetJobResponse(
 	return err
 }
 
+type RunJobRequestObject struct {
+	JobId openapi_types.UUID `json:"jobId"`
+}
+
+type RunJobResponseObject interface {
+	VisitRunJobResponse(w http.ResponseWriter) error
+}
+
+type RunJob200JSONResponse Job
+
+func (response RunJob200JSONResponse) VisitRunJobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunJob401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response RunJob401ApplicationProblemPlusJSONResponse) VisitRunJobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.WWWAuthenticate != nil {
+		w.Header().Set("WWW-Authenticate", fmt.Sprint(*response.Headers.WWWAuthenticate))
+	}
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunJob404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response RunJob404ApplicationProblemPlusJSONResponse) VisitRunJobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunJob429ApplicationProblemPlusJSONResponse struct {
+	TooManyRequestsApplicationProblemPlusJSONResponse
+}
+
+func (response RunJob429ApplicationProblemPlusJSONResponse) VisitRunJobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunJob503ApplicationProblemPlusJSONResponse Problem
+
+func (response RunJob503ApplicationProblemPlusJSONResponse) VisitRunJobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateQueryRequestObject struct {
 	Params CreateQueryParams
 	Body   *CreateQueryJSONRequestBody
@@ -1301,6 +1421,9 @@ type StrictServerInterface interface {
 	// GetJob Consulta el estado de un trabajo asíncrono
 	// (GET /jobs/{jobId})
 	GetJob(ctx context.Context, request GetJobRequestObject) (GetJobResponseObject, error)
+	// RunJob Ejecuta una pasada de un trabajo
+	// (POST /jobs/{jobId}/run)
+	RunJob(ctx context.Context, request RunJobRequestObject) (RunJobResponseObject, error)
 	// CreateQuery Ejecuta una consulta semántica
 	// (POST /queries)
 	CreateQuery(ctx context.Context, request CreateQueryRequestObject) (CreateQueryResponseObject, error)
@@ -1478,6 +1601,32 @@ func (sh *strictHandler) GetJob(w http.ResponseWriter, r *http.Request, jobId op
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetJobResponseObject); ok {
 		if err := validResponse.VisitGetJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RunJob operation middleware
+func (sh *strictHandler) RunJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID) {
+	var request RunJobRequestObject
+
+	request.JobId = jobId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RunJob(ctx, request.(RunJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RunJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RunJobResponseObject); ok {
+		if err := validResponse.VisitRunJobResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
