@@ -52,6 +52,7 @@ jobs:
           secrets: |-
             DATABASE_URL=database-url:latest
             API_WRITE_TOKEN=api-write-token:latest
+            GEMINI_API_KEY=gemini-api-key:latest
           # Una sola instancia: acota el costo en el peor caso y hace exacto
           # el límite de peticiones, que vive en memoria.
           # 512 MiB: el motor de extracción de PDF reserva unos 310 y una

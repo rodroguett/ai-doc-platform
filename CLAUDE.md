@@ -53,7 +53,11 @@ contra el código y contra `gh issue list`.
 - La extracción (`internal/rag/pdftext`) y la fragmentación
   (`internal/rag/chunk`) se prueban con una RCA real en
   `internal/rag/testdata`.
-- No hay embeddings, ni búsqueda, ni llamadas a modelos.
+- `internal/llmgw` genera embeddings con Gemini (`internal/llmgw/gemini`),
+  por HTTP y sin SDK. Reintenta fallas transitorias, regula el ritmo a
+  24.000 tokens por minuto y cuenta su propio consumo. Nada lo usa todavía:
+  los fragmentos siguen sin embeddings (#24).
+- No hay búsqueda ni generación de respuestas.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
@@ -130,6 +134,9 @@ make run-db              # lo mismo, con un Postgres local en Docker
 make test                # tests con detector de carrera; requiere Docker.
                          # Tarda uno o dos minutos por los tests de PDF
 make db-down             # elimina el Postgres local
+
+# Prueba contra la API real de Gemini; consume cuota, no corre por omisión:
+GEMINI_LIVE_TEST=1 GEMINI_API_KEY=... go test -run TestLive ./internal/llmgw/gemini/
 make lint                # golangci-lint
 make generate            # regenera el código desde el contrato
 ```
