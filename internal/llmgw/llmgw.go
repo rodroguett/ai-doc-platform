@@ -49,6 +49,40 @@ type Embedder interface {
 	Dimensions() int
 }
 
+// GenerateRequest es lo que se le pide redactar a un modelo.
+type GenerateRequest struct {
+	// System son las instrucciones: qué puede y qué no puede hacer el
+	// modelo. Va separado de Prompt porque Prompt puede incluir texto de
+	// quien consulta.
+	System string
+
+	// Prompt es el contenido sobre el que el modelo trabaja.
+	Prompt string
+
+	// MaxOutputTokens acota el largo de la respuesta.
+	MaxOutputTokens int
+}
+
+// Generation es el texto que redactó un modelo, con lo necesario para
+// declarar en una traza de dónde salió y cuánto costó.
+type Generation struct {
+	Text     string
+	Provider string
+	Model    string
+
+	// PromptTokens y OutputTokens son los que informa el proveedor.
+	PromptTokens int
+	OutputTokens int
+}
+
+// Generator redacta texto a partir de instrucciones y contenido.
+//
+// Devuelve ErrUnavailable cuando ningún modelo pudo responder. Quien llama
+// decide entonces cómo degradar: el generador no inventa una respuesta.
+type Generator interface {
+	Generate(ctx context.Context, req GenerateRequest) (Generation, error)
+}
+
 // Usage es el consumo acumulado de un proveedor desde que arrancó el
 // proceso.
 type Usage struct {
