@@ -28,16 +28,16 @@ sistema, incluidos los errores y sus correcciones.
 Hoy el sistema es **un solo binario desplegado en Cloud Run**, conectado a
 Postgres con pgvector. Al subir un PDF, su texto se extrae y se divide en
 fragmentos que conservan su ubicación —el considerando o la sección, y las
-páginas—, y quedan guardados junto con el documento. Todavía no se generan
-embeddings ni hay búsqueda ni llamadas a modelos: las consultas responden con
-datos de ejemplo.
+páginas—; luego un trabajo en segundo plano genera el embedding de cada
+fragmento y deja el documento listo. Todavía no hay búsqueda ni generación
+de respuestas: las consultas responden con datos de ejemplo.
 
 | Módulo | Estado |
 |---|---|
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
-| `rag` | Al subir un PDF extrae su texto, lo fragmenta por considerandos y secciones, y guarda los fragmentos con su ubicación. Registro, consulta, listado paginado y eliminación de documentos y trabajos. Pendiente: embeddings ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
+| `rag` | Ingesta completa: al subir un PDF extrae su texto, lo fragmenta por considerandos y secciones, y genera sus embeddings en un trabajo reanudable con avance visible. Registro, consulta, listado y eliminación de documentos y trabajos. Pendiente: búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `orchestrator` | Pendiente |
-| `llmgw` | Genera embeddings con Gemini detrás de una interfaz que oculta al proveedor, con reintentos y ritmo regulado. Todavía sin conectar a la ingesta. Pendiente: generación de respuestas, caché, fallback y costos |
+| `llmgw` | Genera embeddings con Gemini detrás de una interfaz que oculta al proveedor, con reintentos y ritmo regulado. Pendiente: generación de respuestas, caché, fallback y costos |
 
 Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
 ejecutable desde el navegador.
@@ -95,10 +95,12 @@ puede importar su paquete raíz, nunca sus subpaquetes, y nadie importa el
 gateway. La regla se verifica en CI con `depguard`. Cuando un módulo se
 extraiga, ese paquete raíz se convertirá en su contrato gRPC.
 
-**La ingesta es asíncrona.** Procesar un documento de trescientas páginas y
-generar sus embeddings toma minutos. El endpoint responde `202 Accepted` con un
-identificador de trabajo. Cómo se ejecuta ese trabajo en Cloud Run, que por
-omisión solo asigna CPU mientras atiende una petición, se decide en [#24](https://github.com/rodroguett/ai-doc-platform/issues/24).
+**La ingesta es asíncrona y reanudable.** Subir un documento responde `202
+Accepted` con un trabajo cuyo avance puede consultarse. Como Cloud Run solo
+asigna CPU mientras atiende una petición, el trabajo corre en pasadas de un
+minuto que Cloud Tasks despacha invocando al propio servicio; cada pasada
+guarda lo que avanza y la siguiente continúa desde ahí
+([ADR-0010](docs/adr/0010-trabajos-con-cloud-tasks.md)).
 
 **`llmgw` concentrará las decisiones operacionales.** Caché de respuestas,
 fallback entre proveedores y conteo de tokens vivirán ahí. Cada respuesta
@@ -162,6 +164,11 @@ make generate     # regenera el servidor tras editar el contrato
 `make test` y `make run-db` levantan un Postgres con pgvector en Docker: los
 tests de persistencia corren contra una base de datos real. `make db-down` lo
 elimina.
+
+Para que los documentos subidos reciban sus embeddings en local hace falta
+una clave de la API de Gemini en `GEMINI_API_KEY`; sin ella se registran con
+sus fragmentos y el trabajo queda en cola. Los trabajos corren dentro del
+proceso, sin Cloud Tasks.
 
 Con `make run-db`, el token de escritura es `dev-token`:
 
@@ -240,6 +247,7 @@ bien no es un registro, es publicidad.
 - [ADR-0007](docs/adr/0007-token-de-escritura.md) — Proteger las escrituras con un token único
 - [ADR-0008](docs/adr/0008-embeddings-gemini.md) — Generar los embeddings con Gemini en su capa gratuita
 - [ADR-0009](docs/adr/0009-extraccion-pdfium.md) — Extraer el texto de los PDF con PDFium en WebAssembly
+- [ADR-0010](docs/adr/0010-trabajos-con-cloud-tasks.md) — Ejecutar los trabajos en pasadas despachadas por Cloud Tasks
 
 ## Contribuir
 
