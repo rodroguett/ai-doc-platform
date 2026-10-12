@@ -8,6 +8,7 @@ package rag
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"time"
@@ -26,7 +27,39 @@ var (
 	// dominio. Los errores que lo envuelven llevan un mensaje apto para el
 	// cliente.
 	ErrInvalidInput = errors.New("entrada inválida")
+
+	// ErrNoTextLayer indica que el documento no trae texto extraíble: es un
+	// escaneo, páginas que son imágenes. Envuelve ErrInvalidInput.
+	ErrNoTextLayer = fmt.Errorf("%w: el documento no tiene capa de texto; los documentos escaneados no se admiten", ErrInvalidInput)
 )
+
+// PageText es el texto de una página de un documento, tal como se extrajo.
+type PageText struct {
+	Number int // desde 1
+	Text   string
+}
+
+// Chunk es un fragmento de un documento junto con su ubicación, que es lo que
+// permite que una cita señale el lugar exacto del original.
+type Chunk struct {
+	// Index es la posición del fragmento dentro del documento, desde 0.
+	Index int
+
+	// Section ubica el fragmento en la estructura del documento, por
+	// ejemplo "Considerando 10.1". Vacía si el documento no tiene una
+	// estructura reconocible.
+	Section string
+
+	// Heading es el título de la sección, cuando lo tiene.
+	Heading string
+
+	// PageStart y PageEnd son la primera y la última página que el
+	// fragmento abarca, desde 1.
+	PageStart int
+	PageEnd   int
+
+	Text string
+}
 
 // Upload es un documento enviado para ingesta.
 type Upload struct {
