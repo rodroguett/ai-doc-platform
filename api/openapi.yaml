@@ -34,14 +34,20 @@ paths:
       tags: [queries]
       summary: Ejecuta una consulta semántica
       description: |
-        Recupera los pasajes del corpus que mejor responden a la pregunta y
-        los devuelve como citas, con su documento y su ubicación. Un pasaje
-        que no alcanza un puntaje mínimo de relación con la pregunta no se
-        cita; si ninguno lo alcanza, la respuesta lo dice y no trae citas.
+        Recupera los pasajes del corpus que sustentan una respuesta y la
+        redacta a partir de ellos. Cada afirmación de `answer` termina con
+        la marca de su cita, `[1]`, `[2]`, que es la posición de esa cita en
+        `citations`. Solo se devuelven como citas los pasajes que la
+        respuesta cita.
 
-        Cuando ningún modelo redactó la respuesta, `answer` lo indica y la
-        traza lleva `degraded: true`: se entregan los pasajes para que los
-        lea quien consulta.
+        Un pasaje que no alcanza un puntaje mínimo de relación con la
+        pregunta no se usa; si ninguno lo alcanza, la respuesta lo dice y no
+        trae citas.
+
+        Cuando ningún modelo redactó la respuesta, o lo que redactó no cita
+        pasajes reales, `answer` lo indica y la traza lleva
+        `degraded: true`: se entregan los pasajes más relacionados para que
+        los lea quien consulta.
       operationId: createQuery
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -373,7 +379,7 @@ components:
         provider:
           type: string
           description: Proveedor que redactó la respuesta, o `none` si ninguno
-          examples: ['none']
+          examples: ['gemini']
         model:
           type: string
         cache:

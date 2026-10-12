@@ -133,6 +133,7 @@ type part struct {
 }
 
 type content struct {
+	Role  string `json:"role,omitempty"`
 	Parts []part `json:"parts"`
 }
 
@@ -268,7 +269,7 @@ func (c *Client) call(ctx context.Context, method string, body any, tokens int, 
 			return err
 		}
 
-		retryAfter, err := c.send(ctx, method, payload, out)
+		retryAfter, err := c.send(ctx, model, method, payload, out)
 		if err == nil {
 			c.tokens.Add(int64(tokens))
 			return nil
@@ -326,7 +327,7 @@ func (e *transientError) Error() string {
 
 // send hace un intento. Devuelve la espera que el proveedor pide antes de
 // reintentar, si la indica.
-func (c *Client) send(ctx context.Context, method string, payload []byte, out any) (time.Duration, error) {
+func (c *Client) send(ctx context.Context, model, method string, payload []byte, out any) (time.Duration, error) {
 	url := c.baseURL + "/models/" + model + ":" + method
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
