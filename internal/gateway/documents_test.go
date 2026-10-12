@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
+	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
 // multipartBody construye un formulario. Una clave "file" se envía como
@@ -255,5 +256,79 @@ func TestDocumentsWithoutDatabase(t *testing.T) {
 	}
 	for _, rec := range requests {
 		decodeProblem(t, rec, http.StatusServiceUnavailable)
+	}
+}
+
+func TestCreateDocumentStoresChunkCount(t *testing.T) {
+	s := newExampleServer()
+	job := upload(t, s, "%PDF-1.7 contenido", "rca")
+
+	var doc api.Document
+	decodeJSON(t, do(t, s, http.MethodGet, "/v1/documents/"+job.ResourceId.String()), http.StatusOK, &doc)
+	if doc.ChunkCount == nil || *doc.ChunkCount != 1 {
+		t.Errorf("got chunk_count %v, want 1", doc.ChunkCount)
+	}
+}
+
+// Un archivo que no se puede leer se rechaza en la misma petición, sin
+// registrar nada: no queda un trabajo destinado a fallar.
+func TestCreateDocumentRejectsUnreadableFiles(t *testing.T) {
+	for name, content := range map[string]string{
+		"no es un PDF":          "PK\x03\x04 esto es un zip",
+		"PDF sin capa de texto": scannedPDF,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newExampleServer()
+			rec := postDocument(t, s, map[string]string{"file": content, "collection": "rca"})
+
+			p := decodeProblem(t, rec, http.StatusBadRequest)
+			if p.Detail == "" {
+				t.Error("el rechazo debe explicar el motivo")
+			}
+
+			var page api.DocumentPage
+			decodeJSON(t, do(t, s, http.MethodGet, "/v1/documents"), http.StatusOK, &page)
+			if len(page.Data) != 0 {
+				t.Errorf("quedaron %d documentos registrados tras el rechazo", len(page.Data))
+			}
+		})
+	}
+}
+
+// El servicio procesa una subida a la vez: mientras una está en curso, la
+// siguiente se rechaza de inmediato en lugar de acumularse en memoria.
+func TestCreateDocumentOneAtATime(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	s := NewServer(Services{
+		Documents: rag.NewService(newMemStore(), fakeExtractor{hold: release, started: started}, onePerPage),
+	}, WithWriteToken(testToken))
+
+	first := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		first <- postDocument(t, s, map[string]string{"file": "%PDF-1.7 primero", "collection": "rca"})
+	}()
+	<-started // la primera subida ya está dentro de la extracción
+
+	rec := postDocument(t, s, map[string]string{"file": "%PDF-1.7 segundo", "collection": "rca"})
+	p := decodeProblem(t, rec, http.StatusServiceUnavailable)
+	if !strings.HasSuffix(p.Type, "/upload-in-progress") {
+		t.Errorf("got type %q, want upload-in-progress", p.Type)
+	}
+
+	// Las lecturas no se ven afectadas.
+	if rec := do(t, s, http.MethodGet, "/v1/documents"); rec.Code != http.StatusOK {
+		t.Errorf("listar durante una subida: got status %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	close(release)
+	if rec := <-first; rec.Code != http.StatusAccepted {
+		t.Fatalf("la primera subida: got status %d, want %d", rec.Code, http.StatusAccepted)
+	}
+
+	// Terminada la primera, el servicio vuelve a aceptar.
+	rec = postDocument(t, s, map[string]string{"file": "%PDF-1.7 tercero", "collection": "rca"})
+	if rec.Code != http.StatusAccepted {
+		t.Errorf("tras liberar: got status %d, want %d; body: %s", rec.Code, http.StatusAccepted, rec.Body)
 	}
 }

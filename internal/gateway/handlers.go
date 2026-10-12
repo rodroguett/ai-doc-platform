@@ -44,6 +44,9 @@ type Services struct {
 // tienen servicio detrás responden 501.
 type API struct {
 	svc Services
+
+	// uploads limita las subidas simultáneas a su capacidad.
+	uploads chan struct{}
 }
 
 var _ api.StrictServerInterface = (*API)(nil)

@@ -26,16 +26,16 @@ las decisiones de diseño están registradas como
 sistema, incluidos los errores y sus correcciones.
 
 Hoy el sistema es **un solo binario desplegado en Cloud Run**, conectado a
-Postgres con pgvector. Los documentos subidos y sus trabajos de ingesta se
-registran en la base de datos y pueden consultarse, listarse y eliminarse.
-Todavía no hay ingesta, búsqueda ni llamadas a modelos: el contenido de un
-documento subido no se procesa ni se conserva, y las consultas responden con
+Postgres con pgvector. Al subir un PDF, su texto se extrae y se divide en
+fragmentos que conservan su ubicación —el considerando o la sección, y las
+páginas—, y quedan guardados junto con el documento. Todavía no se generan
+embeddings ni hay búsqueda ni llamadas a modelos: las consultas responden con
 datos de ejemplo.
 
 | Módulo | Estado |
 |---|---|
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
-| `rag` | Registro, consulta, listado paginado y eliminación de documentos y trabajos. Extracción del texto de un PDF y fragmentación por considerandos y secciones, todavía sin conectar a la subida. Pendiente: ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
+| `rag` | Al subir un PDF extrae su texto, lo fragmenta por considerandos y secciones, y guarda los fragmentos con su ubicación. Registro, consulta, listado paginado y eliminación de documentos y trabajos. Pendiente: embeddings ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `orchestrator` | Pendiente |
 | `llmgw` | Pendiente |
 
@@ -123,6 +123,10 @@ y se explora con Swagger UI en [`/docs`](https://gateway-w46qaen3gq-uc.a.run.app
 Lo que se sirve es el mismo archivo desde el que se genera el servidor,
 embebido en el binario.
 
+Se admiten PDF con capa de texto de hasta 20 MiB, uno a la vez; un PDF
+escaneado se rechaza. El archivo original no se conserva: se guardan su hash
+y sus fragmentos.
+
 Cada origen tiene un límite de peticiones; al superarlo, la API responde 429
 con `Retry-After`.
 
@@ -198,9 +202,10 @@ La imagen se etiqueta con el SHA del commit además de `latest`, de modo que
 cada revisión apunta a una imagen inmutable y el rollback a un commit exacto es
 posible.
 
-El runtime es una imagen distroless de unos 14 MB, sin shell ni gestor de
+El runtime es una imagen distroless de unos 23 MB, sin shell ni gestor de
 paquetes, ejecutando como usuario no privilegiado. El servicio escala a cero
-cuando no hay tráfico y no pasa de una instancia.
+cuando no hay tráfico y no pasa de una instancia, con 512 MiB de memoria: el
+motor que extrae el texto de los PDF reserva unos 310.
 
 Cloud Run es el único componente que puede generar un cargo; la base de datos
 y los embeddings usan capas gratuitas sin medio de pago. Tres cosas acotan ese

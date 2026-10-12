@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -33,7 +32,13 @@ type Position struct {
 // Store es la persistencia que el servicio necesita. La implementa el
 // subpaquete store; el binario las conecta.
 type Store interface {
-	CreateDocument(ctx context.Context, doc Document, job Job) (Document, Job, error)
+	// CreateDocument registra el documento, su trabajo y sus fragmentos, o
+	// nada.
+	CreateDocument(ctx context.Context, doc Document, job Job, chunks []Chunk) (Document, Job, error)
+
+	// DocumentExists indica si la colección ya tiene un documento con ese
+	// contenido.
+	DocumentExists(ctx context.Context, collection, contentSHA256 string) (bool, error)
 	Document(ctx context.Context, id uuid.UUID) (Document, error)
 	Job(ctx context.Context, id uuid.UUID) (Job, error)
 
@@ -45,20 +50,40 @@ type Store interface {
 	DeleteDocument(ctx context.Context, id uuid.UUID) error
 }
 
+// TextExtractor obtiene el texto de un documento, página por página. Un
+// archivo ilegible devuelve un error que envuelve ErrInvalidInput; uno sin
+// texto, ErrNoTextLayer.
+type TextExtractor interface {
+	Extract(ctx context.Context, data []byte) ([]PageText, error)
+}
+
+// Splitter divide el texto de un documento en fragmentos con su ubicación.
+type Splitter func(pages []PageText) []Chunk
+
 // Service registra y consulta documentos y sus trabajos de ingesta.
 type Service struct {
-	store Store
+	store     Store
+	extractor TextExtractor
+	split     Splitter
 }
 
-func NewService(store Store) *Service {
-	return &Service{store: store}
+// NewService recibe las piezas que implementan los subpaquetes de rag. El
+// paquete raíz no puede importarlos, porque ellos lo importan a él: las
+// conecta el binario.
+func NewService(store Store, extractor TextExtractor, split Splitter) *Service {
+	return &Service{store: store, extractor: extractor, split: split}
 }
 
-// Submit registra un documento y encola su ingesta. El contenido se lee
-// completo para identificarlo por su hash: subir dos veces el mismo archivo
-// a la misma colección devuelve ErrDuplicate.
+// Submit registra un documento: extrae su texto, lo fragmenta y guarda los
+// fragmentos junto con el documento y su trabajo de ingesta. Lo que queda
+// para el trabajo es generar los embeddings.
 //
-// El contenido todavía no se conserva: la ingesta que lo procesa no existe.
+// La extracción ocurre aquí y no en segundo plano por tres razones: tarda
+// segundos, un archivo inválido se rechaza con una respuesta inmediata en
+// lugar de un trabajo fallido, y no hace falta guardar el archivo original.
+//
+// El documento se identifica por el hash de su contenido: subir dos veces el
+// mismo archivo a la misma colección devuelve ErrDuplicate.
 func (s *Service) Submit(ctx context.Context, u Upload) (Job, error) {
 	filename := strings.TrimSpace(u.Filename)
 	collection := strings.TrimSpace(u.Collection)
@@ -67,17 +92,36 @@ func (s *Service) Submit(ctx context.Context, u Upload) (Job, error) {
 		return Job{}, fmt.Errorf("%w: el archivo no tiene nombre", ErrInvalidInput)
 	case collection == "":
 		return Job{}, fmt.Errorf("%w: falta la colección", ErrInvalidInput)
-	case u.Content == nil:
-		return Job{}, fmt.Errorf("%w: falta el contenido del archivo", ErrInvalidInput)
+	case len(u.Content) == 0:
+		return Job{}, fmt.Errorf("%w: el archivo está vacío", ErrInvalidInput)
 	}
 
-	hash := sha256.New()
-	n, err := io.Copy(hash, u.Content)
+	sum := sha256.Sum256(u.Content)
+	contentHash := hex.EncodeToString(sum[:])
+
+	// Extraer cuesta segundos y cientos de megabytes: un duplicado se
+	// rechaza antes. La restricción de unicidad de la base de datos sigue
+	// cubriendo la carrera entre dos subidas simultáneas.
+	exists, err := s.store.DocumentExists(ctx, collection, contentHash)
 	if err != nil {
-		return Job{}, fmt.Errorf("leer el documento: %w", err)
+		return Job{}, err
 	}
-	if n == 0 {
-		return Job{}, fmt.Errorf("%w: el archivo está vacío", ErrInvalidInput)
+	if exists {
+		return Job{}, ErrDuplicate
+	}
+
+	pages, err := s.extractor.Extract(ctx, u.Content)
+	if err != nil {
+		return Job{}, err
+	}
+	chunks := s.split(pages)
+	if len(chunks) == 0 {
+		return Job{}, ErrNoTextLayer
+	}
+	for i := range chunks {
+		if chunks[i].ID, err = uuid.NewV7(); err != nil {
+			return Job{}, fmt.Errorf("generar el identificador de un fragmento: %w", err)
+		}
 	}
 
 	source := filename
@@ -99,10 +143,12 @@ func (s *Service) Submit(ctx context.Context, u Upload) (Job, error) {
 			ID:            docID,
 			Source:        source,
 			Collection:    collection,
+			ChunkCount:    len(chunks),
 			Metadata:      u.Metadata,
-			ContentSHA256: hex.EncodeToString(hash.Sum(nil)),
+			ContentSHA256: contentHash,
 		},
 		Job{ID: jobID, Kind: JobIngest},
+		chunks,
 	)
 	return job, err
 }

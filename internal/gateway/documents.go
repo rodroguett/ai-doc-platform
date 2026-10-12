@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,9 +14,10 @@ import (
 )
 
 // Límites de lectura del multipart. El archivo se lee completo en memoria
-// porque las partes llegan en orden arbitrario y el servicio necesita la
-// colección junto con el contenido. El tope del archivo queda bajo el límite
-// de 32 MiB por petición de Cloud Run.
+// porque las partes llegan en orden arbitrario y la extracción de texto lo
+// necesita entero. El tope del archivo queda bajo el límite de 32 MiB por
+// petición de Cloud Run, y junto con el motor de extracción cabe en la
+// memoria de la instancia (ADR-0009).
 const (
 	maxUploadBytes = 20 << 20
 	maxFieldBytes  = 64 << 10
@@ -29,6 +29,17 @@ func (a *API) CreateDocument(ctx context.Context, req api.CreateDocumentRequestO
 	}
 	if req.Body == nil {
 		return nil, invalidRequest("falta el cuerpo multipart")
+	}
+
+	// Una subida a la vez. Cada una retiene el archivo en memoria mientras
+	// el motor de extracción ocupa la mayor parte de la que tiene la
+	// instancia: aceptar varias la agotaría. La segunda se rechaza en lugar
+	// de esperar, para no retener además su conexión.
+	select {
+	case a.uploads <- struct{}{}:
+		defer func() { <-a.uploads }()
+	default:
+		return nil, errUploadInProgress
 	}
 
 	u, err := readUpload(req.Body)
@@ -146,7 +157,7 @@ func readPart(part *multipart.Part, u *rag.Upload) error {
 			return err
 		}
 		u.Filename = part.FileName()
-		u.Content = bytes.NewReader(data)
+		u.Content = data
 
 	case "collection":
 		data, err := readLimited(part, maxFieldBytes)

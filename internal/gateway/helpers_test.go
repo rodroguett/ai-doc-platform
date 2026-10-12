@@ -1,8 +1,10 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -22,8 +24,45 @@ import (
 func newExampleServer() *Server {
 	return NewServer(Services{
 		Queries:   service.ExampleQueries{},
-		Documents: rag.NewService(newMemStore()),
+		Documents: rag.NewService(newMemStore(), fakeExtractor{}, onePerPage),
 	}, WithWriteToken(testToken))
+}
+
+// fakeExtractor reemplaza al motor de PDF. Trata el contenido como el texto
+// de una sola página, y reproduce los dos rechazos del extractor real: un
+// archivo que no empieza como un PDF, y un PDF sin texto.
+type fakeExtractor struct {
+	// hold, si no es nil, bloquea la extracción hasta que se cierre: permite
+	// mantener una subida en curso.
+	hold    <-chan struct{}
+	started chan<- struct{}
+}
+
+const scannedPDF = "%PDF-1.7 escaneado"
+
+func (f fakeExtractor) Extract(_ context.Context, data []byte) ([]rag.PageText, error) {
+	if f.started != nil {
+		f.started <- struct{}{}
+	}
+	if f.hold != nil {
+		<-f.hold
+	}
+	switch {
+	case !bytes.HasPrefix(data, []byte("%PDF")):
+		return nil, fmt.Errorf("%w: el archivo no es un PDF legible", rag.ErrInvalidInput)
+	case string(data) == scannedPDF:
+		return nil, rag.ErrNoTextLayer
+	}
+	return []rag.PageText{{Number: 1, Text: string(data)}}, nil
+}
+
+// onePerPage es un fragmentador mínimo: un fragmento por página.
+func onePerPage(pages []rag.PageText) []rag.Chunk {
+	chunks := make([]rag.Chunk, len(pages))
+	for i, p := range pages {
+		chunks[i] = rag.Chunk{Index: i, PageStart: p.Number, PageEnd: p.Number, Text: p.Text}
+	}
+	return chunks
 }
 
 // testToken es el token de escritura de los servidores de prueba. Los
@@ -53,7 +92,18 @@ func newMemStore() *memStore {
 	}
 }
 
-func (m *memStore) CreateDocument(_ context.Context, doc rag.Document, job rag.Job) (rag.Document, rag.Job, error) {
+func (m *memStore) DocumentExists(_ context.Context, collection, sha string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, d := range m.docs {
+		if d.Collection == collection && d.ContentSHA256 == sha {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *memStore) CreateDocument(_ context.Context, doc rag.Document, job rag.Job, chunks []rag.Chunk) (rag.Document, rag.Job, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -65,7 +115,7 @@ func (m *memStore) CreateDocument(_ context.Context, doc rag.Document, job rag.J
 	// Cada documento queda un segundo después del anterior, para que el
 	// orden del listado sea determinista.
 	m.now = m.now.Add(time.Second)
-	doc.Status, doc.CreatedAt = rag.DocumentPending, m.now
+	doc.Status, doc.CreatedAt, doc.ChunkCount = rag.DocumentPending, m.now, len(chunks)
 	job.Status, job.DocumentID, job.CreatedAt, job.UpdatedAt = rag.JobQueued, doc.ID, m.now, m.now
 	m.docs[doc.ID], m.jobs[job.ID] = doc, job
 	return doc, job, nil

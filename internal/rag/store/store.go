@@ -27,15 +27,17 @@ func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-// CreateDocument registra un documento y su trabajo de ingesta en una sola
-// transacción: no puede quedar un documento sin trabajo ni al revés. Devuelve
-// ambos con los valores que asignó la base de datos.
+// CreateDocument registra un documento, su trabajo de ingesta y sus
+// fragmentos en una sola transacción: no puede quedar un documento sin
+// trabajo, ni fragmentos de un documento que no se registró. Devuelve el
+// documento y el trabajo con los valores que asignó la base de datos.
 //
 // Si el contenido ya existe en la colección devuelve rag.ErrDuplicate.
-func (s *Store) CreateDocument(ctx context.Context, doc rag.Document, job rag.Job) (rag.Document, rag.Job, error) {
+func (s *Store) CreateDocument(ctx context.Context, doc rag.Document, job rag.Job, chunks []rag.Chunk) (rag.Document, rag.Job, error) {
 	if doc.Metadata == nil {
 		doc.Metadata = map[string]any{}
 	}
+	doc.ChunkCount = len(chunks)
 	job.DocumentID = doc.ID
 
 	tx, err := s.pool.Begin(ctx)
@@ -46,11 +48,11 @@ func (s *Store) CreateDocument(ctx context.Context, doc rag.Document, job rag.Jo
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	err = tx.QueryRow(ctx, `
-		INSERT INTO documents (id, source, collection, metadata, content_sha256)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING status, chunk_count, created_at`,
-		doc.ID, doc.Source, doc.Collection, doc.Metadata, doc.ContentSHA256,
-	).Scan(&doc.Status, &doc.ChunkCount, &doc.CreatedAt)
+		INSERT INTO documents (id, source, collection, chunk_count, metadata, content_sha256)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING status, created_at`,
+		doc.ID, doc.Source, doc.Collection, doc.ChunkCount, doc.Metadata, doc.ContentSHA256,
+	).Scan(&doc.Status, &doc.CreatedAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
@@ -69,10 +71,58 @@ func (s *Store) CreateDocument(ctx context.Context, doc rag.Document, job rag.Jo
 		return rag.Document{}, rag.Job{}, fmt.Errorf("insertar el trabajo: %w", err)
 	}
 
+	// COPY inserta todos los fragmentos en un solo viaje a la base de datos.
+	_, err = tx.CopyFrom(ctx,
+		pgx.Identifier{"chunks"},
+		[]string{"id", "document_id", "position", "section", "heading", "page_start", "page_end", "content"},
+		pgx.CopyFromSlice(len(chunks), func(i int) ([]any, error) {
+			c := chunks[i]
+			return []any{c.ID, doc.ID, c.Index, c.Section, c.Heading, c.PageStart, c.PageEnd, c.Text}, nil
+		}),
+	)
+	if err != nil {
+		return rag.Document{}, rag.Job{}, fmt.Errorf("insertar los fragmentos: %w", err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return rag.Document{}, rag.Job{}, fmt.Errorf("confirmar la transacción: %w", err)
 	}
 	return doc, job, nil
+}
+
+// DocumentExists indica si la colección ya tiene un documento con ese
+// contenido.
+func (s *Store) DocumentExists(ctx context.Context, collection, contentSHA256 string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM documents WHERE collection = $1 AND content_sha256 = $2)`,
+		collection, contentSHA256,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("buscar el documento: %w", err)
+	}
+	return exists, nil
+}
+
+// Chunks devuelve los fragmentos de un documento, en orden.
+func (s *Store) Chunks(ctx context.Context, documentID uuid.UUID) ([]rag.Chunk, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, position, section, heading, page_start, page_end, content
+		FROM chunks
+		WHERE document_id = $1
+		ORDER BY position`, documentID)
+	if err != nil {
+		return nil, fmt.Errorf("listar los fragmentos: %w", err)
+	}
+	chunks, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Chunk, error) {
+		var c rag.Chunk
+		err := row.Scan(&c.ID, &c.Index, &c.Section, &c.Heading, &c.PageStart, &c.PageEnd, &c.Text)
+		return c, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leer los fragmentos: %w", err)
+	}
+	return chunks, nil
 }
 
 // Document devuelve un documento, o rag.ErrNotFound si no existe.
