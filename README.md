@@ -123,6 +123,9 @@ y se explora con Swagger UI en [`/docs`](https://gateway-w46qaen3gq-uc.a.run.app
 Lo que se sirve es el mismo archivo desde el que se genera el servidor,
 embebido en el binario.
 
+Cada origen tiene un límite de peticiones; al superarlo, la API responde 429
+con `Retry-After`.
+
 Leer y consultar es público. Las operaciones que modifican el corpus —subir y
 eliminar documentos— exigen un token de escritura en el encabezado
 `Authorization: Bearer`, de modo que un tercero no pueda llenar ni vaciar la
@@ -197,7 +200,13 @@ posible.
 
 El runtime es una imagen distroless de unos 14 MB, sin shell ni gestor de
 paquetes, ejecutando como usuario no privilegiado. El servicio escala a cero
-cuando no hay tráfico, con un tope de tres instancias como límite de gasto.
+cuando no hay tráfico y no pasa de una instancia.
+
+Cloud Run es el único componente que puede generar un cargo; la base de datos
+y los embeddings usan capas gratuitas sin medio de pago. Tres cosas acotan ese
+riesgo: el máximo de una instancia, un límite de 60 peticiones por minuto por
+origen, y una alerta de presupuesto de un dólar en la cuenta de facturación.
+Ninguna es un tope duro: Google Cloud no ofrece uno.
 
 El servicio expone `/health`, que indica que el proceso está vivo, y `/ready`,
 que verifica además que sus dependencias respondan y detalla el estado de cada

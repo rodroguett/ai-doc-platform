@@ -46,7 +46,11 @@ contra el código y contra `gh issue list`.
   de escritura (`API_WRITE_TOKEN`; en Cloud Run, el secreto
   `api-write-token`). Sin token configurado, esas operaciones rechazan todo.
 - No hay ingesta, ni búsqueda, ni llamadas a modelos.
-- Desplegado en Cloud Run, público, con despliegue continuo desde `main`.
+- Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
+  con una sola instancia como máximo.
+- Límite de 60 peticiones por minuto por origen (ráfaga de 30), en memoria,
+  activo por omisión; `/health` está exento. El origen es el último valor
+  de `X-Forwarded-For`, que agrega Google y el cliente no puede falsear.
 
 ## Cómo está organizado
 
@@ -152,7 +156,11 @@ cambio hace que deje de ser cierto, se corrige en el mismo pull request.
 
 ## Presupuesto
 
-El demo no debe generar ningún cobro; el tope acordado es un dólar. La base
+El demo no debe generar ningún cobro; el tope acordado es un dólar. Cloud
+Run es el único componente con facturación activa: lo acotan el máximo de
+una instancia y una alerta de presupuesto de un dólar en la cuenta de
+facturación, que avisa pero no detiene el gasto. No subir el máximo de
+instancias sin revisarlo. La base
 de datos (Neon) y los embeddings (Gemini) usan capas gratuitas sin medio de
 pago, de modo que al agotarse una cuota el servicio falla en lugar de
 cobrar. Cualquier cambio que introduzca un medio de pago, o que aumente el
