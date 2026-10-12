@@ -119,8 +119,8 @@ type Trace struct {
 	Model    string
 	Cache    CacheStatus
 
-	// Degraded indica que la respuesta no la redactó un modelo: se
-	// entregan los pasajes recuperados sin texto generado.
+	// Degraded indica que había pasajes para responder pero ningún modelo
+	// redactó la respuesta: se entregan los pasajes sin texto generado.
 	Degraded bool
 
 	Tokens    TokenUsage

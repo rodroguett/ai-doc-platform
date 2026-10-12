@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rodroguett/ai-doc-platform/internal/llmgw"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
 
@@ -57,6 +59,10 @@ type Retriever interface {
 type Config struct {
 	Retriever Retriever
 
+	// Generator redacta las respuestas. Puede faltar: las consultas se
+	// responden entonces en modo degradado, con los pasajes.
+	Generator llmgw.Generator
+
 	// DailyBudget es el tope diario de consultas nuevas. Cero usa el valor
 	// por omisión.
 	DailyBudget int
@@ -68,6 +74,7 @@ type Config struct {
 // Service responde consultas. Es seguro para uso concurrente.
 type Service struct {
 	retriever Retriever
+	generator llmgw.Generator
 	budget    int
 	now       func() time.Time
 
@@ -80,11 +87,17 @@ type Service struct {
 type cached struct {
 	passages []rag.Passage
 	expires  time.Time
+
+	// draft es la respuesta redactada para estos pasajes, si hubo una. Una
+	// redacción fallida no se guarda: la siguiente consulta vuelve a
+	// intentarlo.
+	draft *draft
 }
 
 func NewService(cfg Config) *Service {
 	s := &Service{
 		retriever: cfg.Retriever,
+		generator: cfg.Generator,
 		budget:    cfg.DailyBudget,
 		now:       cfg.Now,
 		cache:     map[string]cached{},
@@ -98,12 +111,17 @@ func NewService(cfg Config) *Service {
 	return s
 }
 
-// Answer responde una consulta con los pasajes del corpus que mejor se
-// relacionan con ella.
+// Answer responde una consulta.
 //
-// Todavía ningún modelo redacta la respuesta: se entregan los pasajes como
-// citas, y la traza lo declara como modo degradado. Es el mismo camino que
-// seguirá una consulta cuando el proveedor de generación no esté disponible.
+// Recupera los pasajes del corpus que la sustentan y le pide a un modelo que
+// redacte la respuesta a partir de ellos. La respuesta redactada se entrega
+// solo si cita pasajes que existen; las citas que se devuelven son esos
+// pasajes.
+//
+// Si no hay modelo, si el modelo no responde o si su respuesta no está
+// sustentada, la consulta se responde en modo degradado: se entregan los
+// pasajes sin texto redactado, y la traza lo declara. Una falla del modelo
+// nunca es un error de la consulta.
 func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 	start := s.now()
 
@@ -112,7 +130,8 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		return Answer{}, err
 	}
 
-	retrieved, cache, err := s.retrieve(ctx, q)
+	key := cacheKey(q)
+	retrieved, written, cache, err := s.retrieve(ctx, key, q)
 	if err != nil {
 		return Answer{}, err
 	}
@@ -132,19 +151,53 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		return Answer{}, fmt.Errorf("generar el identificador de la traza: %w", err)
 	}
 	answer := Answer{
-		ID:        uuid.New(),
-		Text:      composeText(len(passages)),
-		Citations: make([]Citation, len(passages)),
+		ID: uuid.New(),
 		Trace: Trace{
 			ID:       strings.ReplaceAll(traceID.String(), "-", ""),
 			Provider: noProvider,
 			Model:    noProvider,
 			Cache:    cache,
-			Degraded: true,
 			Latency:  Latency{Retrieval: retrieval},
 		},
 	}
-	for i, p := range passages {
+
+	// Sin pasajes no se le pide nada al modelo: no hay de qué redactar, y
+	// la respuesta "no hay sustento" es definitiva, no una degradación.
+	cited := passages
+	switch {
+	case len(passages) == 0:
+		answer.Text = noSourcesAnswer
+
+	case written != nil:
+		// La misma pregunta ya se redactó hace poco: no se gasta otra
+		// petición del modelo, y la traza no declara tokens que esta
+		// consulta no consumió.
+		answer.Text, cited = written.text, pick(passages, written.cited)
+		answer.Trace.Provider, answer.Trace.Model = written.provider, written.model
+
+	case s.generator == nil:
+		answer.Text, answer.Trace.Degraded = degradedText(len(passages)), true
+
+	default:
+		generationStart := s.now()
+		d, err := s.generate(ctx, q.Question, passages)
+		answer.Trace.Latency.Generation = s.now().Sub(generationStart)
+		switch {
+		case err == nil:
+			s.remember(key, &d)
+			answer.Text, cited = d.text, pick(passages, d.cited)
+			answer.Trace.Provider, answer.Trace.Model = d.provider, d.model
+			answer.Trace.Tokens = TokenUsage{Prompt: d.promptTokens, Completion: d.outputTokens}
+		case ctx.Err() != nil:
+			return Answer{}, ctx.Err()
+		default:
+			slog.WarnContext(ctx, "la consulta se responde en modo degradado", "error", err)
+			answer.Text, answer.Trace.Degraded = degradedText(len(passages)), true
+		}
+	}
+
+	answer.Citations = make([]Citation, len(cited))
+	for i, p := range cited {
 		answer.Citations[i] = Citation{
 			ChunkID:    p.ChunkID,
 			DocumentID: p.DocumentID,
@@ -155,8 +208,8 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		}
 	}
 	// La traza completa muestra todo lo recuperado, también lo que no
-	// alcanzó el puntaje mínimo: permite ver por qué una pregunta quedó sin
-	// citas.
+	// alcanzó el puntaje mínimo o el modelo no citó: permite ver por qué
+	// una respuesta trae las citas que trae.
 	if q.Trace == TraceFull {
 		for i, p := range retrieved {
 			answer.Trace.Retrieved = append(answer.Trace.Retrieved, RetrievedChunk{ChunkID: p.ChunkID, Score: p.Score, Rank: i + 1})
@@ -166,24 +219,45 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 	return answer, nil
 }
 
-// retrieve devuelve los pasajes de la consulta, desde la caché si la misma
-// pregunta se respondió hace poco. Una pregunta nueva descuenta del tope
+// pick devuelve los pasajes en las posiciones dadas.
+func pick(passages []rag.Passage, positions []int) []rag.Passage {
+	out := make([]rag.Passage, 0, len(positions))
+	for _, i := range positions {
+		if i < len(passages) {
+			out = append(out, passages[i])
+		}
+	}
+	return out
+}
+
+// remember guarda la respuesta redactada junto a los pasajes de la consulta.
+func (s *Service) remember(key string, d *draft) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entry, ok := s.cache[key]; ok {
+		entry.draft = d
+		s.cache[key] = entry
+	}
+}
+
+// retrieve devuelve los pasajes de la consulta y, si la hay, la respuesta ya
+// redactada para ellos, desde la caché si la misma pregunta se respondió
+// hace poco. Una pregunta nueva descuenta del tope
 // diario, porque gasta una petición del proveedor de embeddings.
-func (s *Service) retrieve(ctx context.Context, q Query) ([]rag.Passage, CacheStatus, error) {
-	key := cacheKey(q)
+func (s *Service) retrieve(ctx context.Context, key string, q Query) ([]rag.Passage, *draft, CacheStatus, error) {
 	now := s.now()
 
 	s.mu.Lock()
 	if entry, ok := s.cache[key]; ok && now.Before(entry.expires) {
 		s.mu.Unlock()
-		return entry.passages, CacheHit, nil
+		return entry.passages, entry.draft, CacheHit, nil
 	}
 	if day := now.UTC().Format(time.DateOnly); day != s.spentDay {
 		s.spentDay, s.spent = day, 0
 	}
 	if s.spent >= s.budget {
 		s.mu.Unlock()
-		return nil, "", fmt.Errorf("%w: se atendieron las %d consultas nuevas de hoy", ErrQuotaExhausted, s.budget)
+		return nil, nil, "", fmt.Errorf("%w: se atendieron las %d consultas nuevas de hoy", ErrQuotaExhausted, s.budget)
 	}
 	// Se descuenta antes de consultar: así varias consultas simultáneas no
 	// pasan todas con el último cupo.
@@ -194,11 +268,11 @@ func (s *Service) retrieve(ctx context.Context, q Query) ([]rag.Passage, CacheSt
 	switch {
 	case err == nil:
 	case errors.Is(err, rag.ErrInvalidInput):
-		return nil, "", fmt.Errorf("%w: %s", ErrInvalidInput, strings.TrimPrefix(err.Error(), rag.ErrInvalidInput.Error()+": "))
+		return nil, nil, "", fmt.Errorf("%w: %s", ErrInvalidInput, strings.TrimPrefix(err.Error(), rag.ErrInvalidInput.Error()+": "))
 	case errors.Is(err, rag.ErrUnavailable):
-		return nil, "", fmt.Errorf("%w: no se pudo consultar el corpus", ErrUnavailable)
+		return nil, nil, "", fmt.Errorf("%w: no se pudo consultar el corpus", ErrUnavailable)
 	default:
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	s.mu.Lock()
@@ -210,7 +284,7 @@ func (s *Service) retrieve(ctx context.Context, q Query) ([]rag.Passage, CacheSt
 	s.cache[key] = cached{passages: passages, expires: now.Add(cacheTTL)}
 	s.mu.Unlock()
 
-	return passages, CacheMiss, nil
+	return passages, nil, CacheMiss, nil
 }
 
 // cacheKey identifica una consulta sin distinguir mayúsculas ni espacios de
@@ -220,15 +294,13 @@ func cacheKey(q Query) string {
 	return fmt.Sprintf("%s\x00%s\x00%d", question, q.Collection, q.TopK)
 }
 
-func composeText(passages int) string {
-	switch passages {
-	case 0:
-		return noSourcesAnswer
-	case 1:
-		return "Todavía no hay una respuesta redactada. Este es el pasaje del corpus más relacionado con la pregunta, con su documento y su ubicación."
-	default:
-		return fmt.Sprintf("Todavía no hay una respuesta redactada. Estos son los %d pasajes del corpus más relacionados con la pregunta, cada uno con su documento y su ubicación.", passages)
+// degradedText es la respuesta cuando ningún modelo redactó una: dice qué se
+// entrega en su lugar.
+func degradedText(passages int) string {
+	if passages == 1 {
+		return "No hay una respuesta redactada para esta consulta. Este es el pasaje del corpus más relacionado con la pregunta, con su documento y su ubicación."
 	}
+	return fmt.Sprintf("No hay una respuesta redactada para esta consulta. Estos son los %d pasajes del corpus más relacionados con la pregunta, cada uno con su documento y su ubicación.", passages)
 }
 
 // locator dice dónde está el pasaje dentro de su documento, como lo buscaría

@@ -108,8 +108,8 @@ func TestAnswerReturnsPassagesAsCitations(t *testing.T) {
 	}
 }
 
-// Todavía ningún modelo redacta la respuesta, y la traza debe decirlo: una
-// respuesta sin generación no puede pasar por una generada.
+// Sin modelo que redacte, la respuesta entrega los pasajes y la traza debe
+// decirlo: una respuesta sin generación no puede pasar por una generada.
 func TestAnswerDeclaresDegradedMode(t *testing.T) {
 	f := newFixture(0, passage("Considerando 1", 1, 1, 0.7, "texto"))
 
