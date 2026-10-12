@@ -15,14 +15,19 @@ type Config struct {
 	// WriteToken autoriza las operaciones que modifican el corpus. Vacío
 	// significa que esas operaciones rechazan toda petición.
 	WriteToken string
+
+	// GeminiAPIKey es la clave de la API de Gemini, con la que se generan
+	// los embeddings. Vacía significa que no se pueden generar.
+	GeminiAPIKey string
 }
 
 // Load lee la configuración del entorno y aplica los valores por omisión.
 func Load() Config {
 	cfg := Config{
-		Port:        os.Getenv("PORT"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		WriteToken:  os.Getenv("API_WRITE_TOKEN"),
+		Port:         os.Getenv("PORT"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		WriteToken:   os.Getenv("API_WRITE_TOKEN"),
+		GeminiAPIKey: os.Getenv("GEMINI_API_KEY"),
 	}
 	if cfg.Port == "" {
 		cfg.Port = "8080"

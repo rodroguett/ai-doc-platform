@@ -37,7 +37,7 @@ datos de ejemplo.
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
 | `rag` | Al subir un PDF extrae su texto, lo fragmenta por considerandos y secciones, y guarda los fragmentos con su ubicación. Registro, consulta, listado paginado y eliminación de documentos y trabajos. Pendiente: embeddings ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `orchestrator` | Pendiente |
-| `llmgw` | Pendiente |
+| `llmgw` | Genera embeddings con Gemini detrás de una interfaz que oculta al proveedor, con reintentos y ritmo regulado. Todavía sin conectar a la ingesta. Pendiente: generación de respuestas, caché, fallback y costos |
 
 Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
 ejecutable desde el navegador.
