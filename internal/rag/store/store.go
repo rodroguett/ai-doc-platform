@@ -400,3 +400,51 @@ func vectorLiteral(v []float32) string {
 	b.WriteByte(']')
 	return b.String()
 }
+
+// Search devuelve los pasajes cuyo vector es más parecido al dado, del más al
+// menos parecido.
+//
+// Solo considera documentos listos: los fragmentos de uno a medio ingerir
+// darían una imagen parcial del documento. Y solo vectores del modelo
+// indicado: los de otro modelo no son comparables.
+//
+// La búsqueda es exacta: compara la consulta contra todos los vectores, sin
+// índice. Con miles de fragmentos toma milisegundos y no puede omitir un
+// resultado. Un índice aproximado (HNSW) lo necesitaría un corpus mucho
+// mayor, y trae un costo propio: combinado con estos filtros puede devolver
+// menos pasajes de los pedidos.
+func (s *Store) Search(ctx context.Context, vector []float32, model string, opts rag.SearchOptions) ([]rag.Passage, error) {
+	var collection *string
+	if opts.Collection != "" {
+		collection = &opts.Collection
+	}
+
+	// `<=>` es la distancia coseno de pgvector, entre 0 y 2. La similitud es
+	// su complemento; se acota a cero porque un puntaje negativo no dice
+	// nada útil a quien lee la cita.
+	rows, err := s.pool.Query(ctx, `
+		SELECT c.id, c.document_id, d.source, c.section, c.heading, c.page_start, c.page_end, c.content,
+		       GREATEST(0, 1 - (c.embedding <=> $1::public.vector)) AS score
+		FROM chunks c
+		JOIN documents d ON d.id = c.document_id
+		WHERE c.embedding IS NOT NULL
+		  AND c.embedding_model = $2
+		  AND d.status = 'ready'
+		  AND ($3::text IS NULL OR d.collection = $3)
+		ORDER BY c.embedding <=> $1::public.vector, c.id
+		LIMIT $4`, vectorLiteral(vector), model, collection, opts.TopK)
+	if err != nil {
+		return nil, fmt.Errorf("buscar los pasajes: %w", err)
+	}
+
+	passages, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Passage, error) {
+		var p rag.Passage
+		err := row.Scan(&p.ChunkID, &p.DocumentID, &p.Source, &p.Section, &p.Heading,
+			&p.PageStart, &p.PageEnd, &p.Text, &p.Score)
+		return p, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leer los pasajes: %w", err)
+	}
+	return passages, nil
+}

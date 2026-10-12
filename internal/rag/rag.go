@@ -37,6 +37,28 @@ var (
 	ErrNoTextLayer = fmt.Errorf("%w: el documento no tiene capa de texto; los documentos escaneados no se admiten", ErrInvalidInput)
 )
 
+// SearchOptions acota una búsqueda de pasajes.
+type SearchOptions struct {
+	Collection string // vacía: todas las colecciones
+	TopK       int    // cuántos pasajes devolver, a lo más
+}
+
+// Passage es un fragmento recuperado por una búsqueda, con lo necesario para
+// citarlo: de qué documento viene y dónde está dentro de él.
+type Passage struct {
+	ChunkID    uuid.UUID
+	DocumentID uuid.UUID
+	Source     string // nombre legible del documento
+	Section    string
+	Heading    string
+	PageStart  int
+	PageEnd    int
+	Text       string
+
+	// Score es la similitud con la consulta, entre 0 y 1.
+	Score float64
+}
+
 // ChunkEmbedding es el vector de un fragmento.
 type ChunkEmbedding struct {
 	ChunkID uuid.UUID

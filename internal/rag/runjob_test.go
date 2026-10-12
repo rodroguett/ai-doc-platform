@@ -30,6 +30,9 @@ type recordingEmbedder struct {
 	// onCall se ejecuta al inicio de cada llamada.
 	onCall func(call int)
 	calls  int
+
+	queries  []string
+	queryErr error
 }
 
 func (e *recordingEmbedder) EmbedDocuments(_ context.Context, texts []string) ([][]float32, error) {
@@ -58,6 +61,19 @@ func (e *recordingEmbedder) EmbedDocuments(_ context.Context, texts []string) ([
 		out[i] = v
 	}
 	return out, nil
+}
+
+// EmbedQuery devuelve el vector configurado para la consulta, o el error.
+func (e *recordingEmbedder) EmbedQuery(_ context.Context, text string) ([]float32, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.queries = append(e.queries, text)
+	if e.queryErr != nil {
+		return nil, e.queryErr
+	}
+	v := make([]float32, 768)
+	v[0] = 1
+	return v, nil
 }
 
 func (e *recordingEmbedder) Model() string { return "modelo-de-prueba" }
