@@ -55,7 +55,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /docs", s.handleDocs)
 	s.mux.Handle("GET /{$}", http.RedirectHandler("/docs", http.StatusFound))
 
-	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc},
+	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc, uploads: make(chan struct{}, 1)},
 		[]api.StrictMiddlewareFunc{s.requireWriteToken},
 		api.StrictHTTPServerOptions{
 			RequestErrorHandlerFunc:  handleRequestError,

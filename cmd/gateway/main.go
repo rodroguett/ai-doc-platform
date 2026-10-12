@@ -15,6 +15,8 @@ import (
 	"github.com/rodroguett/ai-doc-platform/internal/platform/config"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
+	"github.com/rodroguett/ai-doc-platform/internal/rag/chunk"
+	"github.com/rodroguett/ai-doc-platform/internal/rag/pdftext"
 	"github.com/rodroguett/ai-doc-platform/internal/rag/store"
 )
 
@@ -60,7 +62,11 @@ func run() error {
 		}
 		slog.Info("base de datos lista", "migraciones_aplicadas", applied)
 
-		services.Documents = rag.NewService(store.New(pool))
+		// El motor de extracción se inicia en la primera subida, no aquí.
+		extractor := pdftext.New()
+		defer func() { _ = extractor.Close() }()
+
+		services.Documents = rag.NewService(store.New(pool), extractor, chunk.Split)
 		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}
 

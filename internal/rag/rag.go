@@ -9,7 +9,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"time"
 
@@ -42,6 +41,8 @@ type PageText struct {
 // Chunk es un fragmento de un documento junto con su ubicación, que es lo que
 // permite que una cita señale el lugar exacto del original.
 type Chunk struct {
+	ID uuid.UUID
+
 	// Index es la posición del fragmento dentro del documento, desde 0.
 	Index int
 
@@ -66,7 +67,7 @@ type Upload struct {
 	Filename   string
 	Collection string
 	Metadata   map[string]any
-	Content    io.Reader
+	Content    []byte
 }
 
 // ListOptions acota un listado de documentos.

@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ func TestCreateDocument(t *testing.T) {
 	ctx := context.Background()
 	doc, job := newDocument("aaaa")
 
-	createdDoc, createdJob, err := s.CreateDocument(ctx, doc, job)
+	createdDoc, createdJob, err := s.CreateDocument(ctx, doc, job, nil)
 	if err != nil {
 		t.Fatalf("crear: %v", err)
 	}
@@ -73,7 +74,7 @@ func TestCreateDocumentWithoutMetadata(t *testing.T) {
 	doc, job := newDocument("aaaa")
 	doc.Metadata = nil
 
-	if _, _, err := s.CreateDocument(ctx, doc, job); err != nil {
+	if _, _, err := s.CreateDocument(ctx, doc, job, nil); err != nil {
 		t.Fatalf("crear: %v", err)
 	}
 	got, err := s.Document(ctx, doc.ID)
@@ -90,13 +91,13 @@ func TestCreateDocumentRejectsDuplicateContent(t *testing.T) {
 	ctx := context.Background()
 
 	doc, job := newDocument("aaaa")
-	if _, _, err := s.CreateDocument(ctx, doc, job); err != nil {
+	if _, _, err := s.CreateDocument(ctx, doc, job, nil); err != nil {
 		t.Fatalf("crear el primero: %v", err)
 	}
 
 	// Mismo contenido, misma colección: es el mismo documento.
 	dup, dupJob := newDocument("aaaa")
-	if _, _, err := s.CreateDocument(ctx, dup, dupJob); !errors.Is(err, rag.ErrDuplicate) {
+	if _, _, err := s.CreateDocument(ctx, dup, dupJob, nil); !errors.Is(err, rag.ErrDuplicate) {
 		t.Fatalf("got %v, want ErrDuplicate", err)
 	}
 	// El rechazo no debe dejar un trabajo huérfano.
@@ -107,7 +108,7 @@ func TestCreateDocumentRejectsDuplicateContent(t *testing.T) {
 	// Mismo contenido en otra colección: es otro documento.
 	other, otherJob := newDocument("aaaa")
 	other.Collection = "normativa"
-	if _, _, err := s.CreateDocument(ctx, other, otherJob); err != nil {
+	if _, _, err := s.CreateDocument(ctx, other, otherJob, nil); err != nil {
 		t.Errorf("mismo contenido en otra colección: %v", err)
 	}
 }
@@ -155,7 +156,7 @@ func TestListDocumentsBreaksTiesByID(t *testing.T) {
 
 	for _, sha := range []string{"aaaa", "bbbb", "cccc"} {
 		doc, job := newDocument(sha)
-		if _, _, err := s.CreateDocument(ctx, doc, job); err != nil {
+		if _, _, err := s.CreateDocument(ctx, doc, job, nil); err != nil {
 			t.Fatalf("crear: %v", err)
 		}
 	}
@@ -182,5 +183,112 @@ func TestListDocumentsBreaksTiesByID(t *testing.T) {
 
 	if docs, err := s.ListDocuments(ctx, "rca", after, 1); err != nil || len(docs) != 0 {
 		t.Errorf("tras el último documento: got %d y %v, want 0", len(docs), err)
+	}
+}
+
+func newChunks(n int) []rag.Chunk {
+	chunks := make([]rag.Chunk, n)
+	for i := range chunks {
+		chunks[i] = rag.Chunk{
+			ID:        uuid.Must(uuid.NewV7()),
+			Index:     i,
+			Section:   fmt.Sprintf("Considerando %d", i+1),
+			Heading:   fmt.Sprintf("Título %d", i+1),
+			PageStart: i + 1,
+			PageEnd:   i + 2,
+			Text:      fmt.Sprintf("Texto del fragmento %d.", i),
+		}
+	}
+	return chunks
+}
+
+func TestCreateDocumentStoresChunks(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.Migrate(ctx, pool, rag.Migrations()); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	s := store.New(pool)
+	doc, job := newDocument("aaaa")
+	want := newChunks(3)
+
+	created, _, err := s.CreateDocument(ctx, doc, job, want)
+	if err != nil {
+		t.Fatalf("crear: %v", err)
+	}
+	if created.ChunkCount != 3 {
+		t.Errorf("got chunk_count %d, want 3", created.ChunkCount)
+	}
+	if got, err := s.Document(ctx, doc.ID); err != nil || got.ChunkCount != 3 {
+		t.Errorf("documento leído: chunk_count %d, err %v", got.ChunkCount, err)
+	}
+
+	got, err := s.Chunks(ctx, doc.ID)
+	if err != nil {
+		t.Fatalf("leer los fragmentos: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d fragmentos, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("fragmento %d:\n got %+v\nwant %+v", i, got[i], want[i])
+		}
+	}
+
+	// Los vectores quedan vacíos hasta que se generan los embeddings.
+	var pending int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM chunks WHERE embedding IS NULL AND embedding_model IS NULL`).Scan(&pending); err != nil || pending != 3 {
+		t.Errorf("got %d fragmentos pendientes, err %v; want 3", pending, err)
+	}
+
+	// Eliminar el documento elimina sus fragmentos.
+	if err := s.DeleteDocument(ctx, doc.ID); err != nil {
+		t.Fatalf("eliminar: %v", err)
+	}
+	if got, err := s.Chunks(ctx, doc.ID); err != nil || len(got) != 0 {
+		t.Errorf("tras eliminar quedan %d fragmentos, err %v", len(got), err)
+	}
+}
+
+// Si los fragmentos no pueden guardarse, no debe quedar el documento.
+func TestCreateDocumentIsAtomicWithChunks(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	doc, job := newDocument("aaaa")
+	chunks := newChunks(2)
+	chunks[1].Index = chunks[0].Index // posición repetida: viola la unicidad
+
+	if _, _, err := s.CreateDocument(ctx, doc, job, chunks); err == nil {
+		t.Fatal("se esperaba un error por la posición repetida")
+	}
+	if _, err := s.Document(ctx, doc.ID); !errors.Is(err, rag.ErrNotFound) {
+		t.Errorf("el documento quedó registrado sin sus fragmentos: %v", err)
+	}
+	if _, err := s.Job(ctx, job.ID); !errors.Is(err, rag.ErrNotFound) {
+		t.Errorf("el trabajo quedó registrado: %v", err)
+	}
+}
+
+func TestDocumentExists(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	doc, job := newDocument("aaaa")
+	if _, _, err := s.CreateDocument(ctx, doc, job, nil); err != nil {
+		t.Fatalf("crear: %v", err)
+	}
+
+	for _, tt := range []struct {
+		collection, sha string
+		want            bool
+	}{
+		{"rca", "aaaa", true},
+		{"rca", "bbbb", false},
+		{"normativa", "aaaa", false},
+	} {
+		got, err := s.DocumentExists(ctx, tt.collection, tt.sha)
+		if err != nil || got != tt.want {
+			t.Errorf("%s/%s: got %v, err %v; want %v", tt.collection, tt.sha, got, err, tt.want)
+		}
 	}
 }

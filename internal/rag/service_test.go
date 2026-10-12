@@ -4,30 +4,78 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres/postgrestest"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
+	"github.com/rodroguett/ai-doc-platform/internal/rag/chunk"
+	"github.com/rodroguett/ai-doc-platform/internal/rag/pdftext"
 	"github.com/rodroguett/ai-doc-platform/internal/rag/store"
 )
 
-func newService(t *testing.T) *rag.Service {
+// countingExtractor trata el contenido como el texto de una página y cuenta
+// cuántas veces se lo invoca. Rechaza lo que no empieza como un PDF.
+type countingExtractor struct{ calls *int }
+
+func (e countingExtractor) Extract(_ context.Context, data []byte) ([]rag.PageText, error) {
+	*e.calls++
+	if !strings.HasPrefix(string(data), "%PDF") {
+		return nil, fmt.Errorf("%w: el archivo no es un PDF legible", rag.ErrInvalidInput)
+	}
+	return []rag.PageText{{Number: 1, Text: string(data)}}, nil
+}
+
+// twoPerPage produce dos fragmentos por página, sin identificador: asignarlo
+// es tarea del servicio.
+func twoPerPage(pages []rag.PageText) []rag.Chunk {
+	var chunks []rag.Chunk
+	for _, p := range pages {
+		for part := range 2 {
+			chunks = append(chunks, rag.Chunk{
+				Index: len(chunks), Section: fmt.Sprintf("Parte %d", part+1),
+				PageStart: p.Number, PageEnd: p.Number, Text: p.Text,
+			})
+		}
+	}
+	return chunks
+}
+
+type fixture struct {
+	service     *rag.Service
+	store       *store.Store
+	extractions *int
+}
+
+func newFixture(t *testing.T) fixture {
 	t.Helper()
 	pool := postgrestest.NewPool(t)
 	if _, err := postgres.Migrate(context.Background(), pool, rag.Migrations()); err != nil {
 		t.Fatalf("migrar: %v", err)
 	}
-	return rag.NewService(store.New(pool))
+	calls := 0
+	st := store.New(pool)
+	return fixture{
+		service:     rag.NewService(st, countingExtractor{calls: &calls}, twoPerPage),
+		store:       st,
+		extractions: &calls,
+	}
 }
 
+func newService(t *testing.T) *rag.Service {
+	t.Helper()
+	return newFixture(t).service
+}
+
+// submit sube un documento cuyo contenido es un PDF de mentira.
 func submit(t *testing.T, s *rag.Service, content, collection string) rag.Job {
 	t.Helper()
 	job, err := s.Submit(context.Background(), rag.Upload{
 		Filename:   "rca-042-2019.pdf",
 		Collection: collection,
-		Content:    strings.NewReader(content),
+		Content:    []byte("%PDF " + content),
 	})
 	if err != nil {
 		t.Fatalf("subir %q: %v", content, err)
@@ -48,8 +96,8 @@ func TestSubmitRegistersDocumentAndJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("leer el documento: %v", err)
 	}
-	// sha256("contenido"), calculado con sha256sum.
-	const want = "6f9566ef46386b8cf372671cb9eddff5488256eff5ea5fb99e1041c3e27082bf"
+	// sha256 de "%PDF contenido", el contenido que arma submit.
+	const want = "b894d755d1ea98eaa8abb6652cf4dba01252c493b5991edfde8f87e79f26e3c9"
 	if doc.ContentSHA256 != want {
 		t.Errorf("got hash %q, want %q", doc.ContentSHA256, want)
 	}
@@ -63,10 +111,10 @@ func TestSubmitRejectsInvalidAndDuplicate(t *testing.T) {
 	ctx := context.Background()
 
 	invalid := []rag.Upload{
-		{Collection: "rca", Content: strings.NewReader("x")},
-		{Filename: "a.pdf", Content: strings.NewReader("x")},
+		{Collection: "rca", Content: []byte("%PDF x")},
+		{Filename: "a.pdf", Content: []byte("%PDF x")},
 		{Filename: "a.pdf", Collection: "rca"},
-		{Filename: "a.pdf", Collection: "rca", Content: strings.NewReader("")},
+		{Filename: "a.pdf", Collection: "rca", Content: []byte{}},
 	}
 	for _, u := range invalid {
 		if _, err := s.Submit(ctx, u); !errors.Is(err, rag.ErrInvalidInput) {
@@ -75,7 +123,7 @@ func TestSubmitRejectsInvalidAndDuplicate(t *testing.T) {
 	}
 
 	submit(t, s, "contenido", "rca")
-	_, err := s.Submit(ctx, rag.Upload{Filename: "otro-nombre.pdf", Collection: "rca", Content: strings.NewReader("contenido")})
+	_, err := s.Submit(ctx, rag.Upload{Filename: "otro-nombre.pdf", Collection: "rca", Content: []byte("%PDF contenido")})
 	if !errors.Is(err, rag.ErrDuplicate) {
 		t.Errorf("mismo contenido con otro nombre: got %v, want ErrDuplicate", err)
 	}
@@ -181,5 +229,151 @@ func TestDeleteRemovesDocumentAndJob(t *testing.T) {
 	}
 	if err := s.Delete(ctx, job.DocumentID); !errors.Is(err, rag.ErrNotFound) {
 		t.Errorf("segundo borrado: got %v, want ErrNotFound", err)
+	}
+}
+
+func TestSubmitStoresChunks(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	job := submit(t, f.service, "contenido", "rca")
+
+	doc, err := f.service.Document(ctx, job.DocumentID)
+	if err != nil {
+		t.Fatalf("leer el documento: %v", err)
+	}
+	if doc.ChunkCount != 2 {
+		t.Errorf("got chunk_count %d, want 2", doc.ChunkCount)
+	}
+
+	chunks, err := f.store.Chunks(ctx, job.DocumentID)
+	if err != nil {
+		t.Fatalf("leer los fragmentos: %v", err)
+	}
+	if len(chunks) != 2 {
+		t.Fatalf("got %d fragmentos, want 2", len(chunks))
+	}
+	seen := map[string]bool{}
+	for i, c := range chunks {
+		if c.Index != i || c.Section != fmt.Sprintf("Parte %d", i+1) || c.Text != "%PDF contenido" {
+			t.Errorf("fragmento %d inesperado: %+v", i, c)
+		}
+		// El servicio asigna a cada fragmento un identificador propio.
+		if c.ID.String() == "00000000-0000-0000-0000-000000000000" || seen[c.ID.String()] {
+			t.Errorf("fragmento %d sin identificador único: %s", i, c.ID)
+		}
+		seen[c.ID.String()] = true
+	}
+}
+
+// Extraer cuesta segundos y cientos de megabytes: un duplicado debe
+// rechazarse sin llegar a hacerlo.
+func TestSubmitRejectsDuplicateBeforeExtracting(t *testing.T) {
+	f := newFixture(t)
+	submit(t, f.service, "contenido", "rca")
+	if *f.extractions != 1 {
+		t.Fatalf("la primera subida extrajo %d veces, want 1", *f.extractions)
+	}
+
+	_, err := f.service.Submit(context.Background(), rag.Upload{
+		Filename: "copia.pdf", Collection: "rca", Content: []byte("%PDF contenido"),
+	})
+
+	if !errors.Is(err, rag.ErrDuplicate) {
+		t.Fatalf("got %v, want ErrDuplicate", err)
+	}
+	if *f.extractions != 1 {
+		t.Errorf("el duplicado se extrajo: %d extracciones, want 1", *f.extractions)
+	}
+}
+
+func TestSubmitRejectsUnreadableFileWithoutStoringAnything(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	_, err := f.service.Submit(ctx, rag.Upload{Filename: "a.zip", Collection: "rca", Content: []byte("PK no es un PDF")})
+
+	if !errors.Is(err, rag.ErrInvalidInput) {
+		t.Fatalf("got %v, want ErrInvalidInput", err)
+	}
+	page, err := f.service.Documents(ctx, rag.ListOptions{})
+	if err != nil || len(page.Documents) != 0 {
+		t.Errorf("quedaron %d documentos registrados, err %v", len(page.Documents), err)
+	}
+}
+
+// Un documento del que no sale ningún fragmento no tiene nada que consultar.
+func TestSubmitRejectsDocumentWithoutChunks(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.Migrate(ctx, pool, rag.Migrations()); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	calls := 0
+	noChunks := func([]rag.PageText) []rag.Chunk { return nil }
+	s := rag.NewService(store.New(pool), countingExtractor{calls: &calls}, noChunks)
+
+	_, err := s.Submit(ctx, rag.Upload{Filename: "a.pdf", Collection: "rca", Content: []byte("%PDF vacío")})
+
+	if !errors.Is(err, rag.ErrNoTextLayer) {
+		t.Fatalf("got %v, want ErrNoTextLayer", err)
+	}
+}
+
+// De punta a punta con las piezas reales: el extractor, el fragmentador y la
+// base de datos, sobre la RCA de prueba.
+func TestSubmitRealDocument(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.Migrate(ctx, pool, rag.Migrations()); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	extractor := pdftext.New()
+	t.Cleanup(func() { _ = extractor.Close() })
+	st := store.New(pool)
+	s := rag.NewService(st, extractor, chunk.Split)
+
+	data, err := os.ReadFile("testdata/rca-tres-valles.pdf")
+	if err != nil {
+		t.Fatalf("leer el documento de prueba: %v", err)
+	}
+	job, err := s.Submit(ctx, rag.Upload{
+		Filename:   "rca-tres-valles.pdf",
+		Collection: "rca",
+		Metadata:   map[string]any{"source": "RCA Continuidad Operacional Minera Tres Valles"},
+		Content:    data,
+	})
+	if err != nil {
+		t.Fatalf("subir: %v", err)
+	}
+
+	doc, err := s.Document(ctx, job.DocumentID)
+	if err != nil {
+		t.Fatalf("leer el documento: %v", err)
+	}
+	if doc.ChunkCount != 168 || doc.Source != "RCA Continuidad Operacional Minera Tres Valles" {
+		t.Errorf("got %d fragmentos y fuente %q, want 168", doc.ChunkCount, doc.Source)
+	}
+
+	chunks, err := st.Chunks(ctx, job.DocumentID)
+	if err != nil || len(chunks) != 168 {
+		t.Fatalf("got %d fragmentos guardados, err %v; want 168", len(chunks), err)
+	}
+	var air *rag.Chunk
+	for i := range chunks {
+		if chunks[i].Section == "Considerando 10.1" {
+			air = &chunks[i]
+		}
+	}
+	if air == nil {
+		t.Fatal("no se guardó el considerando 10.1")
+	}
+	if air.PageStart != 89 || air.PageEnd != 90 || !strings.Contains(air.Text, "150 ug/m3N") {
+		t.Errorf("el considerando 10.1 se guardó mal: páginas %d-%d", air.PageStart, air.PageEnd)
+	}
+
+	// El mismo archivo, de nuevo, es un duplicado.
+	if _, err := s.Submit(ctx, rag.Upload{Filename: "otra-copia.pdf", Collection: "rca", Content: data}); !errors.Is(err, rag.ErrDuplicate) {
+		t.Errorf("segunda subida: got %v, want ErrDuplicate", err)
 	}
 }

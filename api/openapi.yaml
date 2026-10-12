@@ -83,8 +83,13 @@ paths:
       tags: [documents]
       summary: Registra un documento para ingesta
       description: |
-        Encola el documento para chunking y generación de embeddings.
-        El procesamiento es asíncrono: use el job devuelto para seguir el avance.
+        Recibe un PDF con capa de texto, extrae y fragmenta su contenido, y
+        encola la generación de embeddings. La respuesta llega cuando los
+        fragmentos ya están guardados, lo que puede tomar varios segundos;
+        use el job devuelto para seguir el resto del avance.
+
+        Un archivo que no es un PDF legible, o un PDF escaneado sin capa de
+        texto, se rechaza con 400.
       operationId: createDocument
       security:
         - bearerAuth: []
@@ -127,6 +132,11 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503':
+          description: Hay otra subida en curso; el servicio procesa una a la vez
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /documents/{documentId}:
     parameters:

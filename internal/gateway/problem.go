@@ -49,6 +49,14 @@ var errNoDatabase = newServiceError(
 	"El almacenamiento de documentos no está configurado en esta instancia.",
 )
 
+// errUploadInProgress se devuelve cuando ya hay una subida en curso.
+var errUploadInProgress = newServiceError(
+	"upload-in-progress",
+	"Hay otra subida en curso",
+	http.StatusServiceUnavailable,
+	"El servicio procesa un documento a la vez. Reintente en unos segundos.",
+)
+
 var errNotImplemented = newServiceError(
 	"not-implemented",
 	"Funcionalidad no disponible",
