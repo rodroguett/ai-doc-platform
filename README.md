@@ -28,17 +28,21 @@ sistema, incluidos los errores y sus correcciones.
 Hoy el sistema es **un solo binario desplegado en Cloud Run**, conectado a
 Postgres con pgvector. Al subir un PDF, su texto se extrae y se divide en
 fragmentos que conservan su ubicación; un trabajo en segundo plano genera el
-embedding de cada uno. Una consulta recupera los pasajes del corpus que
-mejor la responden y los devuelve como citas, con su documento, su
-considerando y sus páginas. Todavía ningún modelo redacta la respuesta: se
-entregan los pasajes, y la traza lo declara como modo degradado.
+embedding de cada uno. Una consulta recupera los pasajes del corpus que la
+sustentan, y un modelo redacta la respuesta a partir de ellos, marcando en
+cada afirmación el pasaje que la respalda. La respuesta se entrega solo si
+sus citas apuntan a pasajes que existen.
+
+Cuando el modelo no responde, o su respuesta no cita, la consulta se entrega
+en **modo degradado**: los pasajes, sin texto redactado, y la traza lo
+declara. Con la capa gratuita del proveedor eso ocurre con frecuencia.
 
 | Módulo | Estado |
 |---|---|
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
 | `rag` | Ingesta completa y búsqueda por similitud: extrae el texto de un PDF, lo fragmenta por considerandos y secciones, genera sus embeddings en un trabajo reanudable, y recupera los pasajes más parecidos a una pregunta |
-| `orchestrator` | Responde consultas con los pasajes recuperados como citas, descartando los que no alcanzan un puntaje mínimo. Caché de preguntas repetidas y tope diario. Pendiente: generación de la respuesta ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
-| `llmgw` | Genera embeddings con Gemini detrás de una interfaz que oculta al proveedor, con reintentos y ritmo regulado. Pendiente: generación de respuestas, caché, fallback y costos |
+| `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real. Si el modelo falla, responde en modo degradado. Caché de preguntas repetidas y tope diario |
+| `llmgw` | Embeddings y generación con Gemini detrás de interfaces que ocultan al proveedor. Respaldo entre dos modelos de generación; reintentos y ritmo regulado para los embeddings. Pendiente: conteo de costos persistente |
 
 Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
 ejecutable desde el navegador.
@@ -49,11 +53,12 @@ curl -s https://gateway-w46qaen3gq-uc.a.run.app/v1/queries \
   -d '{"question": "¿Con qué frecuencia se monitorea el agua subterránea?"}'
 ```
 
-La respuesta trae como citas los pasajes de la RCA del proyecto "Continuidad
-Operacional Minera Tres Valles" más relacionados con la pregunta, cada uno
-con su considerando y sus páginas, junto con la traza de ejecución. La traza
-declara `"degraded": true`: todavía ningún modelo redacta la respuesta, y una
-respuesta sin redacción no debe poder confundirse con una generada.
+La respuesta se redacta a partir de la RCA del proyecto "Continuidad
+Operacional Minera Tres Valles": cada afirmación lleva la marca de su cita, y
+cada cita trae el considerando y las páginas donde verificarla. La traza dice
+qué modelo la redactó, con cuántos tokens y en cuánto tiempo; si dice
+`"degraded": true`, ningún modelo la redactó y lo que se entrega son los
+pasajes.
 
 ## Arquitectura
 
@@ -69,24 +74,22 @@ graph TD
 
     subgraph Binario["Binario único en Cloud Run"]
         GW[gateway<br/>HTTP · contrato OpenAPI · RFC 9457]
-        ORC[orchestrator<br/>recupera y cita<br/>generación pendiente]
+        ORC[orchestrator<br/>recupera · redacta · verifica las citas]
         RAG[rag<br/>ingesta · búsqueda semántica]
-        LLM[llmgw<br/>embeddings<br/>generación · fallback · costos pendientes]
+        LLM[llmgw<br/>embeddings · generación con respaldo]
     end
 
     Cliente -->|REST| GW
     GW --> ORC
     GW --> RAG
     ORC --> RAG
-    ORC -.-> LLM
+    ORC --> LLM
     RAG --> LLM
     RAG --> PG[(Postgres + pgvector)]
     LLM --> PROV[Gemini]
     TASKS[Cloud Tasks] -->|ejecuta los trabajos| GW
     RAG -->|encola| TASKS
 ```
-
-Las líneas punteadas están planificadas; las sólidas existen.
 
 **Cada módulo expone un contrato y oculta su implementación.** Otro módulo solo
 puede importar su paquete raíz, nunca sus subpaquetes, y nadie importa el
@@ -100,10 +103,11 @@ minuto que Cloud Tasks despacha invocando al propio servicio; cada pasada
 guarda lo que avanza y la siguiente continúa desde ahí
 ([ADR-0010](docs/adr/0010-trabajos-con-cloud-tasks.md)).
 
-**`llmgw` concentrará las decisiones operacionales.** Caché de respuestas,
-fallback entre proveedores y conteo de tokens vivirán ahí. Cada respuesta
-declarará en su traza qué proveedor la generó, si hubo acierto de caché y
-cuánto costó.
+**`llmgw` concentra las decisiones sobre los modelos.** Qué modelo redacta,
+cuál lo respalda si no responde, cómo se reintenta y a qué ritmo. Los demás
+módulos piden un vector o un texto sin saber quién lo produce. Cada respuesta
+declara en su traza qué modelo la generó, si salió de la caché y cuántos
+tokens consumió.
 
 ## Contrato
 

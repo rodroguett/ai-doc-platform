@@ -62,16 +62,24 @@ contra el código y contra `gh issue list`.
 - `internal/llmgw` genera embeddings con Gemini (`internal/llmgw/gemini`),
   por HTTP y sin SDK. Reintenta fallas transitorias, regula el ritmo a
   24.000 tokens por minuto y cuenta su propio consumo. `rag` lo consume a
-  través de su propia interfaz `rag.Embedder`.
+  través de su propia interfaz `rag.Embedder`. También redacta
+  (`gemini.Generator`, que implementa `llmgw.Generator`).
 - `internal/orchestrator` responde las consultas: pide los pasajes a
-  `rag.Service.Search`, descarta los que puntúan bajo 0,60 y los devuelve
-  como citas. No hay generación: la respuesta entrega los pasajes y la
-  traza marca `degraded`. Caché de 10 minutos y tope de 500 consultas
-  nuevas por día, ambos en memoria. ADR-0011.
+  `rag.Service.Search`, descarta los que puntúan bajo 0,60, le pide la
+  redacción a `llmgw.Generator` y verifica las citas (`verifyCitations`):
+  toda marca `[n]` debe apuntar a un pasaje entregado, y debe haber al
+  menos una. Devuelve como citas solo los pasajes citados, con las marcas
+  renumeradas. Si el modelo falla o su texto no pasa la verificación,
+  responde en modo degradado (los pasajes, `degraded: true`); nunca es un
+  error. Caché de 10 minutos y tope de 500 consultas nuevas por día, en
+  memoria. ADR-0011.
+- La verificación de citas es de forma: no comprueba que el pasaje diga lo
+  que la respuesta afirma.
 - La búsqueda es exacta, sin índice sobre los vectores, a propósito.
 - En producción está ingerida la RCA "Continuidad Operacional Minera Tres
   Valles" (colección `rca`, 168 fragmentos).
-- No hay generación de respuestas (#25) ni conjunto de evaluación (#51).
+- No hay conjunto de evaluación (#51): la calidad de las respuestas no
+  está medida.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
@@ -135,7 +143,7 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
   `gemini-3.1-flash-lite`, y si ninguno responde, modo degradado
   (ADR-0012). Misma clave y misma capa gratuita que los embeddings. Los
   modelos Flash mayores devuelven 503 en la capa gratuita; no cambiarlos sin
-  medir. Todavía no está implementado (#25).
+  medir. Cada modelo se intenta una vez por consulta, sin reintentos.
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
   `protectedOperations` (`internal/gateway/auth.go`); un test verifica que
