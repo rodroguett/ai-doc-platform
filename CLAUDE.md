@@ -131,6 +131,11 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
   tienen vector y sigue desde ahí. No usar goroutines para trabajo en
   segundo plano en Cloud Run: la CPU se retira al responder. La cola
   `ingest` se creó a mano y no está en el repositorio.
+- **Generación con `gemini-3.5-flash-lite`**, respaldo en
+  `gemini-3.1-flash-lite`, y si ninguno responde, modo degradado
+  (ADR-0012). Misma clave y misma capa gratuita que los embeddings. Los
+  modelos Flash mayores devuelven 503 en la capa gratuita; no cambiarlos sin
+  medir. Todavía no está implementado (#25).
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
   `protectedOperations` (`internal/gateway/auth.go`); un test verifica que
