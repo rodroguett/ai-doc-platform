@@ -339,8 +339,8 @@ func TestExcerptIsShortenedBetweenWords(t *testing.T) {
 // cita; si ninguno lo alcanza, la respuesta dice que no hay sustento.
 func TestAnswerDropsPassagesBelowMinimumScore(t *testing.T) {
 	relevant := passage("Considerando 10.1", 89, 90, 0.76, "pertinente")
-	borderline := passage("Considerando 10.2", 91, 91, 0.55, "en el límite")
-	unrelated := passage("Considerando 4.3", 12, 12, 0.51, "sin relación")
+	borderline := passage("Considerando 10.2", 91, 91, 0.60, "en el límite")
+	unrelated := passage("Considerando 4.3", 12, 12, 0.59, "sin relación")
 	f := newFixture(0, relevant, borderline, unrelated)
 
 	answer := ask(t, f.service, orchestrator.Query{Question: "¿Cómo se monitorea el aire?", Trace: orchestrator.TraceFull})
@@ -352,13 +352,14 @@ func TestAnswerDropsPassagesBelowMinimumScore(t *testing.T) {
 		t.Errorf("la respuesta cuenta pasajes que no cita: %q", answer.Text)
 	}
 	// La traza completa conserva lo descartado, para poder explicarlo.
-	if len(answer.Trace.Retrieved) != 3 || answer.Trace.Retrieved[2].Score != 0.51 {
+	if len(answer.Trace.Retrieved) != 3 || answer.Trace.Retrieved[2].Score != 0.59 {
 		t.Errorf("got recuperados %+v, want los tres", answer.Trace.Retrieved)
 	}
 }
 
 func TestAnswerHasNoCitationsWhenNothingIsRelevant(t *testing.T) {
-	f := newFixture(0, passage("", 3, 3, 0.51, "a"), passage("", 4, 4, 0.50, "b"))
+	// Los puntajes que obtuvo esta pregunta contra la RCA de prueba.
+	f := newFixture(0, passage("", 3, 3, 0.542, "a"), passage("", 4, 4, 0.534, "b"))
 
 	answer := ask(t, f.service, orchestrator.Query{Question: "¿Cuál es la receta del pisco sour?"})
 

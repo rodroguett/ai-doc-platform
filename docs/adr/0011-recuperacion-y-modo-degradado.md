@@ -45,9 +45,22 @@ contra los de ese modelo y los de documentos que terminaron su ingesta.
 vectores. Sobre 5.000 vectores toma 68 milisegundos en la máquina de
 desarrollo, y no puede omitir un resultado.
 
-**Un pasaje bajo el puntaje mínimo no se cita.** El piso es 0,55. Si ningún
+**Un pasaje bajo el puntaje mínimo no se cita.** El piso es 0,60. Si ningún
 pasaje lo alcanza, la respuesta dice que no encontró sustento y no trae
 citas.
+
+El piso se fijó primero en 0,55, con una medición sobre un extracto de seis
+páginas, y se corrigió al medir sobre la RCA completa en el servicio
+desplegado:
+
+| Preguntas | Puntajes de los cuatro primeros pasajes |
+|---|---|
+| Siete que el documento responde | Entre 0,659 y 0,852 |
+| Dos ajenas al documento | Entre 0,516 y 0,542 |
+
+En las siete, el primer pasaje fue el que respondía la pregunta. Con el piso
+en 0,55, la pregunta ajena mejor puntuada quedó fuera por ocho milésimas;
+0,60 queda en medio de la brecha.
 
 **Sin generación, la respuesta entrega los pasajes y lo dice.** La traza
 marca `degraded`, con proveedor y modelo `none`, y sin tokens ni costo. No
@@ -75,7 +88,7 @@ menos pasajes de los pedidos. Es lo primero a agregar si el corpus crece.
 Es lo más simple y nunca deja una pregunta sin citas.
 
 Se descartó al probarlo: la pregunta "¿cuál es la receta del pisco sour?"
-recibió tres citas de la RCA, con puntaje 0,51. En un dominio fiscalizado,
+recibió tres citas de la RCA, con puntajes cercanos a 0,5. En un dominio fiscalizado,
 una cita que no sustenta nada es peor que ninguna.
 
 ### Dejar el piso para cuando exista el conjunto de evaluación
@@ -103,11 +116,15 @@ más útiles y más honestos que una respuesta fabricada.
 
 ### Negativas
 
-- **El piso de 0,55 sale de una sola medición**: una pregunta pertinente y
-  una ajena, sobre un extracto de seis páginas. Los pasajes pertinentes
-  puntuaron entre 0,63 y 0,76 y los ajenos 0,51. Un piso mal puesto falla
-  en silencio hacia ambos lados: descarta pasajes que sí respondían, o deja
-  pasar los que no. Calibrarlo requiere el conjunto de evaluación (#51).
+- **El piso de 0,60 sale de nueve preguntas sobre un solo documento.**
+  Alcanza para ubicarlo, no para darlo por calibrado. Un piso mal puesto
+  falla en silencio hacia ambos lados: descarta pasajes que sí respondían,
+  o deja pasar los que no. Las nueve preguntas las escribió quien construyó
+  el sistema, conociendo el documento; calibrarlo requiere el conjunto de
+  evaluación (#51).
+- **Ninguna pregunta medida cae cerca del piso desde arriba.** No se sabe
+  cómo puntúa una pregunta pertinente pero mal formulada, o una cuyo
+  sustento está repartido en varios pasajes.
 - **El piso depende del modelo de embeddings.** Cambiar de modelo o de
   dimensión lo invalida, y nada en el código lo advierte.
 - **Sin generación, la respuesta no responde la pregunta**: entrega los
