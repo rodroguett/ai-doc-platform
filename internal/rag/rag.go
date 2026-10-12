@@ -27,10 +27,21 @@ var (
 	// cliente.
 	ErrInvalidInput = errors.New("entrada inválida")
 
+	// ErrUnavailable indica que una dependencia externa no respondió: el
+	// proveedor de embeddings o la cola de trabajos. La misma operación
+	// puede funcionar más tarde.
+	ErrUnavailable = errors.New("no disponible por ahora")
+
 	// ErrNoTextLayer indica que el documento no trae texto extraíble: es un
 	// escaneo, páginas que son imágenes. Envuelve ErrInvalidInput.
 	ErrNoTextLayer = fmt.Errorf("%w: el documento no tiene capa de texto; los documentos escaneados no se admiten", ErrInvalidInput)
 )
+
+// ChunkEmbedding es el vector de un fragmento.
+type ChunkEmbedding struct {
+	ChunkID uuid.UUID
+	Vector  []float32
+}
 
 // PageText es el texto de una página de un documento, tal como se extrajo.
 type PageText struct {

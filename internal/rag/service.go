@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/rodroguett/ai-doc-platform/internal/llmgw"
 )
 
 // Límites del listado. Coinciden con los del contrato HTTP, pero se validan
@@ -17,6 +20,24 @@ import (
 const (
 	defaultPageSize = 20
 	maxPageSize     = 100
+)
+
+const (
+	// defaultPassBudget es cuánto trabaja una pasada antes de ceder. Queda
+	// holgado bajo el plazo de 120 s de una petición: al cumplirse puede
+	// haber un grupo en curso, que con el ritmo regulado tarda hasta medio
+	// minuto.
+	defaultPassBudget = 60 * time.Second
+
+	// leaseMargin es cuánto más allá de la pasada dura la reserva del
+	// trabajo, para cubrir ese último grupo.
+	leaseMargin = 90 * time.Second
+
+	// runBatchSize es cuántos fragmentos se convierten y guardan por vez.
+	// Chico, para que el avance se guarde seguido y una falla pierda poco.
+	runBatchSize = 8
+
+	cleanupTimeout = 10 * time.Second
 )
 
 // metadataSource es la clave de los metadatos con la que quien sube un
@@ -48,6 +69,21 @@ type Store interface {
 
 	// DeleteDocument elimina el documento y todo lo que depende de él.
 	DeleteDocument(ctx context.Context, id uuid.UUID) error
+
+	// ClaimJob reserva un trabajo pendiente o en curso por la duración
+	// indicada. Devuelve false, con el estado actual, si ya terminó o si
+	// otra pasada lo tiene reservado.
+	ClaimJob(ctx context.Context, id uuid.UUID, lease time.Duration) (Job, bool, error)
+	ReleaseJob(ctx context.Context, id uuid.UUID) error
+
+	// PendingChunks devuelve hasta limit fragmentos sin embedding, en orden.
+	PendingChunks(ctx context.Context, documentID uuid.UUID, limit int) ([]Chunk, error)
+
+	// SaveEmbeddings guarda los vectores y actualiza el avance del trabajo.
+	SaveEmbeddings(ctx context.Context, jobID uuid.UUID, model string, embeddings []ChunkEmbedding) (Job, error)
+
+	// FinishJob cierra el trabajo y deja a su documento listo o fallido.
+	FinishJob(ctx context.Context, id uuid.UUID, status JobStatus, message string) (Job, error)
 }
 
 // TextExtractor obtiene el texto de un documento, página por página. Un
@@ -60,18 +96,70 @@ type TextExtractor interface {
 // Splitter divide el texto de un documento en fragmentos con su ubicación.
 type Splitter func(pages []PageText) []Chunk
 
-// Service registra y consulta documentos y sus trabajos de ingesta.
-type Service struct {
-	store     Store
-	extractor TextExtractor
-	split     Splitter
+// Embedder convierte pasajes en vectores. Es la parte de llmgw.Embedder que
+// rag necesita, definida aquí porque rag es quien la consume.
+type Embedder interface {
+	EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error)
+
+	// Model identifica al modelo; se guarda junto a cada vector.
+	Model() string
 }
 
-// NewService recibe las piezas que implementan los subpaquetes de rag. El
-// paquete raíz no puede importarlos, porque ellos lo importan a él: las
-// conecta el binario.
-func NewService(store Store, extractor TextExtractor, split Splitter) *Service {
-	return &Service{store: store, extractor: extractor, split: split}
+// Dispatcher hace que un trabajo se ejecute más tarde, fuera de la petición
+// que lo encola.
+type Dispatcher interface {
+	Enqueue(ctx context.Context, jobID uuid.UUID) error
+}
+
+// Deps son las piezas de las que depende el servicio. Las implementan los
+// subpaquetes de rag y otros módulos; el paquete raíz no puede importar a
+// sus subpaquetes, porque ellos lo importan a él, así que las conecta el
+// binario.
+type Deps struct {
+	Store     Store
+	Extractor TextExtractor
+	Split     Splitter
+
+	// Embedder y Dispatcher pueden faltar: los documentos se registran con
+	// sus fragmentos, pero sus trabajos quedan en cola.
+	Embedder   Embedder
+	Dispatcher Dispatcher
+
+	// PassBudget y Now permiten a los tests controlar cuánto dura una
+	// pasada. Vacíos usan los valores reales.
+	PassBudget time.Duration
+	Now        func() time.Time
+}
+
+// Service registra y consulta documentos y sus trabajos de ingesta.
+type Service struct {
+	store      Store
+	extractor  TextExtractor
+	split      Splitter
+	embedder   Embedder
+	dispatcher Dispatcher
+
+	passBudget time.Duration
+	now        func() time.Time
+}
+
+func NewService(deps Deps) *Service {
+	s := &Service{
+		store:      deps.Store,
+		extractor:  deps.Extractor,
+		split:      deps.Split,
+		embedder:   deps.Embedder,
+		dispatcher: deps.Dispatcher,
+		passBudget: deps.PassBudget,
+		now:        deps.Now,
+	}
+	if s.passBudget <= 0 {
+		s.passBudget = defaultPassBudget
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
+	return s
 }
 
 // Submit registra un documento: extrae su texto, lo fragmenta y guarda los
@@ -150,7 +238,145 @@ func (s *Service) Submit(ctx context.Context, u Upload) (Job, error) {
 		Job{ID: jobID, Kind: JobIngest},
 		chunks,
 	)
-	return job, err
+	if err != nil {
+		return Job{}, err
+	}
+
+	if s.dispatcher == nil {
+		return job, nil
+	}
+	if err := s.dispatcher.Enqueue(ctx, job.ID); err != nil {
+		// Un documento registrado cuyo trabajo nadie va a ejecutar quedaría
+		// en cola para siempre, y volver a subirlo daría "duplicado". Se
+		// deshace el registro para que la subida pueda reintentarse.
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		if delErr := s.store.DeleteDocument(cleanup, docID); delErr != nil {
+			return Job{}, fmt.Errorf("encolar el trabajo: %w (y no se pudo deshacer el registro: %w)", err, delErr)
+		}
+		return Job{}, fmt.Errorf("%w: no se pudo encolar el trabajo de ingesta", ErrUnavailable)
+	}
+	return job, nil
+}
+
+// RunJob ejecuta una pasada del trabajo: genera los embeddings de los
+// fragmentos pendientes durante un tiempo acotado. Si quedan fragmentos al
+// terminar la pasada, encola la siguiente.
+//
+// Trabaja en pasadas porque quien lo invoca es una petición, y una petición
+// tiene plazo. Cada grupo de fragmentos se guarda apenas se obtiene, así que
+// una pasada interrumpida no pierde lo ya hecho: la siguiente continúa desde
+// los pendientes.
+//
+// Devuelve el estado del trabajo tras la pasada. Un trabajo terminado, o que
+// otra pasada tiene reservado, se devuelve sin tocarlo: invocarlo de más es
+// inofensivo. Devuelve ErrUnavailable si el proveedor de embeddings no
+// responde; el trabajo queda en curso y puede reintentarse.
+func (s *Service) RunJob(ctx context.Context, id uuid.UUID) (Job, error) {
+	if s.embedder == nil {
+		return Job{}, fmt.Errorf("%w: los embeddings no están configurados", ErrUnavailable)
+	}
+
+	job, claimed, err := s.store.ClaimJob(ctx, id, s.passBudget+leaseMargin)
+	if err != nil {
+		return Job{}, err
+	}
+	if !claimed {
+		return job, nil
+	}
+	// La reserva se libera aunque la petición se haya cancelado.
+	release := func() {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		_ = s.store.ReleaseJob(cleanup, id)
+	}
+
+	deadline := s.now().Add(s.passBudget)
+	for {
+		chunks, err := s.store.PendingChunks(ctx, job.DocumentID, runBatchSize)
+		if err != nil {
+			release()
+			return Job{}, err
+		}
+		if len(chunks) == 0 {
+			return s.store.FinishJob(ctx, id, JobSucceeded, "")
+		}
+
+		// El plazo se revisa entre grupos y no se impone al grupo en curso:
+		// cancelar una petición al proveedor a medio camino gastaría cuota
+		// sin obtener nada.
+		if !s.now().Before(deadline) {
+			release()
+			if s.dispatcher != nil {
+				if err := s.dispatcher.Enqueue(ctx, id); err != nil {
+					return job, fmt.Errorf("%w: no se pudo encolar la continuación del trabajo", ErrUnavailable)
+				}
+			}
+			return job, nil
+		}
+
+		texts := make([]string, len(chunks))
+		for i, c := range chunks {
+			texts[i] = embeddingInput(c)
+		}
+		vectors, err := s.embedder.EmbedDocuments(ctx, texts)
+		switch {
+		case err == nil:
+		case ctx.Err() != nil:
+			release()
+			return Job{}, ctx.Err()
+		case errors.Is(err, llmgw.ErrUnavailable):
+			release()
+			return job, fmt.Errorf("%w: el proveedor de embeddings no responde", ErrUnavailable)
+		default:
+			// Reintentar no lo arregla: el trabajo falla con un mensaje
+			// para quien lo consulta. El detalle técnico va al error.
+			failed, finishErr := s.store.FinishJob(ctx, id, JobFailed, failureMessage(err))
+			if finishErr != nil {
+				release()
+				return Job{}, finishErr
+			}
+			return failed, nil
+		}
+
+		embeddings := make([]ChunkEmbedding, len(chunks))
+		for i, c := range chunks {
+			embeddings[i] = ChunkEmbedding{ChunkID: c.ID, Vector: vectors[i]}
+		}
+		if job, err = s.store.SaveEmbeddings(ctx, id, s.embedder.Model(), embeddings); err != nil {
+			release()
+			return Job{}, err
+		}
+	}
+}
+
+// embeddingInput es el texto de un fragmento que se convierte en vector.
+// Cuando una sección se dividió en varios fragmentos, solo el primero lleva
+// su título en el texto: a los demás se les antepone, para que el vector
+// sepa de qué trata el pasaje.
+func embeddingInput(c Chunk) string {
+	if c.Heading == "" || strings.Contains(firstLine(c.Text), c.Heading) {
+		return c.Text
+	}
+	return c.Heading + "\n" + c.Text
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+	return line
+}
+
+// failureMessage es lo que ve quien consulta un trabajo fallido. No incluye
+// el error original, que puede traer detalles internos.
+func failureMessage(err error) string {
+	switch {
+	case errors.Is(err, llmgw.ErrInvalidInput):
+		return "El proveedor de embeddings rechazó el contenido de un fragmento."
+	case errors.Is(err, llmgw.ErrMisconfigured):
+		return "El proveedor de embeddings está mal configurado."
+	default:
+		return "No se pudieron generar los embeddings del documento."
+	}
 }
 
 func (s *Service) Job(ctx context.Context, id uuid.UUID) (Job, error) {
