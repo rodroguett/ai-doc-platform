@@ -23,13 +23,13 @@ requests y los ADRs son parte de lo que el proyecto muestra.
 Lee esta sección con escepticismo: puede estar desactualizada. Verifica
 contra el código y contra `gh issue list`.
 
-- `v0.1.0` y `v0.2.0` completados. Sigue `v0.3.0`: ingesta end-to-end.
+- `v0.1.0`, `v0.2.0` y `v0.3.0` completados. Sigue `v0.4.0`: consulta con
+  citas reales.
 - El sistema es **un solo binario**, no cuatro servicios, y así seguirá
   hasta que se cumplan las condiciones de extracción de ADR-0005.
 - El gateway implementa la interfaz generada desde el contrato OpenAPI.
-  Los endpoints de documentos y trabajos operan sobre Postgres a través de
-  `rag.Service`; `POST /v1/queries` responde con datos de ejemplo y
-  `GET /v1/usage` devuelve 501. Los errores respetan RFC 9457.
+  Todas las operaciones están implementadas salvo `GET /v1/usage`, que
+  devuelve 501. Los errores respetan RFC 9457. Ya no hay datos de ejemplo.
 - `/health` indica que el proceso está vivo y `/ready` verifica las
   dependencias (hoy, la base de datos). No usar rutas terminadas en `z`:
   Cloud Run las intercepta.
@@ -63,7 +63,15 @@ contra el código y contra `gh issue list`.
   por HTTP y sin SDK. Reintenta fallas transitorias, regula el ritmo a
   24.000 tokens por minuto y cuenta su propio consumo. `rag` lo consume a
   través de su propia interfaz `rag.Embedder`.
-- No hay búsqueda ni generación de respuestas.
+- `internal/orchestrator` responde las consultas: pide los pasajes a
+  `rag.Service.Search`, descarta los que puntúan bajo 0,55 y los devuelve
+  como citas. No hay generación: la respuesta entrega los pasajes y la
+  traza marca `degraded`. Caché de 10 minutos y tope de 500 consultas
+  nuevas por día, ambos en memoria. ADR-0011.
+- La búsqueda es exacta, sin índice sobre los vectores, a propósito.
+- En producción está ingerida la RCA "Continuidad Operacional Minera Tres
+  Valles" (colección `rca`, 168 fragmentos).
+- No hay generación de respuestas (#25) ni conjunto de evaluación (#51).
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
@@ -174,8 +182,8 @@ versión.
 
 **Los tipos del dominio están separados de los generados.** Los de
 documentos y trabajos viven en el paquete raíz de `rag`; los de consultas,
-todavía en `internal/gateway/service`. Los handlers traducen entre ambos. Es deliberado: permite cambiar el contrato HTTP sin
-tocar la lógica, y al revés.
+en el de `orchestrator`. Los handlers traducen entre ambos. Es deliberado:
+permite cambiar el contrato HTTP sin tocar la lógica, y al revés.
 
 **Las consecuencias negativas se escriben.** En los ADRs y en las
 descripciones de pull request, lo que quedó mal resuelto o pendiente se

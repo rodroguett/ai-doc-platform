@@ -27,16 +27,17 @@ sistema, incluidos los errores y sus correcciones.
 
 Hoy el sistema es **un solo binario desplegado en Cloud Run**, conectado a
 Postgres con pgvector. Al subir un PDF, su texto se extrae y se divide en
-fragmentos que conservan su ubicación —el considerando o la sección, y las
-páginas—; luego un trabajo en segundo plano genera el embedding de cada
-fragmento y deja el documento listo. Todavía no hay búsqueda ni generación
-de respuestas: las consultas responden con datos de ejemplo.
+fragmentos que conservan su ubicación; un trabajo en segundo plano genera el
+embedding de cada uno. Una consulta recupera los pasajes del corpus que
+mejor la responden y los devuelve como citas, con su documento, su
+considerando y sus páginas. Todavía ningún modelo redacta la respuesta: se
+entregan los pasajes, y la traza lo declara como modo degradado.
 
 | Módulo | Estado |
 |---|---|
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
-| `rag` | Ingesta completa: al subir un PDF extrae su texto, lo fragmenta por considerandos y secciones, y genera sus embeddings en un trabajo reanudable con avance visible. Registro, consulta, listado y eliminación de documentos y trabajos. Pendiente: búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
-| `orchestrator` | Pendiente |
+| `rag` | Ingesta completa y búsqueda por similitud: extrae el texto de un PDF, lo fragmenta por considerandos y secciones, genera sus embeddings en un trabajo reanudable, y recupera los pasajes más parecidos a una pregunta |
+| `orchestrator` | Responde consultas con los pasajes recuperados como citas, descartando los que no alcanzan un puntaje mínimo. Caché de preguntas repetidas y tope diario. Pendiente: generación de la respuesta ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `llmgw` | Genera embeddings con Gemini detrás de una interfaz que oculta al proveedor, con reintentos y ritmo regulado. Pendiente: generación de respuestas, caché, fallback y costos |
 
 Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
@@ -48,10 +49,11 @@ curl -s https://gateway-w46qaen3gq-uc.a.run.app/v1/queries \
   -d '{"question": "¿Con qué frecuencia se monitorea el agua subterránea?"}'
 ```
 
-La respuesta trae citas a una RCA, su adenda y un informe de seguimiento de un
-proyecto ficticio, junto con la traza de ejecución. La traza declara
-`"provider": "example"`: en este dominio, una respuesta fabricada no debe
-poder confundirse con una real.
+La respuesta trae como citas los pasajes de la RCA del proyecto "Continuidad
+Operacional Minera Tres Valles" más relacionados con la pregunta, cada uno
+con su considerando y sus páginas, junto con la traza de ejecución. La traza
+declara `"degraded": true`: todavía ningún modelo redacta la respuesta, y una
+respuesta sin redacción no debe poder confundirse con una generada.
 
 ## Arquitectura
 
@@ -67,28 +69,24 @@ graph TD
 
     subgraph Binario["Binario único en Cloud Run"]
         GW[gateway<br/>HTTP · contrato OpenAPI · RFC 9457]
-        EX[consultas de ejemplo<br/>datos fijos del dominio]
-        ORC[orchestrator<br/>encadena recuperación y generación]
-        RAG[rag<br/>documentos y trabajos<br/>ingesta y búsqueda pendientes]
-        LLM[llmgw<br/>caché · fallback · costos]
+        ORC[orchestrator<br/>recupera y cita<br/>generación pendiente]
+        RAG[rag<br/>ingesta · búsqueda semántica]
+        LLM[llmgw<br/>embeddings<br/>generación · fallback · costos pendientes]
     end
 
     Cliente -->|REST| GW
-    GW --> EX
-    GW -.-> ORC
+    GW --> ORC
     GW --> RAG
-    ORC -.-> RAG
+    ORC --> RAG
     ORC -.-> LLM
-    RAG -.-> LLM
+    RAG --> LLM
     RAG --> PG[(Postgres + pgvector)]
-    LLM -.-> PROV[Proveedores LLM]
-
-    classDef planned stroke-dasharray: 5 5
-    class ORC,LLM,PROV planned
+    LLM --> PROV[Gemini]
+    TASKS[Cloud Tasks] -->|ejecuta los trabajos| GW
+    RAG -->|encola| TASKS
 ```
 
-Las líneas y cajas punteadas están planificadas; las sólidas existen. El
-servicio de ejemplo de consultas desaparece cuando `orchestrator` lo reemplace.
+Las líneas punteadas están planificadas; las sólidas existen.
 
 **Cada módulo expone un contrato y oculta su implementación.** Otro módulo solo
 puede importar su paquete raíz, nunca sus subpaquetes, y nadie importa el
@@ -154,7 +152,7 @@ proyecto declara ([ADR-0002](docs/adr/0002-tool-versions.md)):
 Luego:
 
 ```bash
-make run          # levanta el gateway en :8080, sin base de datos
+make run          # levanta el gateway en :8080, sin base de datos: solo /docs y /health
 make run-db       # lo mismo, conectado a un Postgres local con pgvector
 make test         # tests con detector de condiciones de carrera
 make lint         # golangci-lint, incluidas las fronteras entre módulos
@@ -248,6 +246,7 @@ bien no es un registro, es publicidad.
 - [ADR-0008](docs/adr/0008-embeddings-gemini.md) — Generar los embeddings con Gemini en su capa gratuita
 - [ADR-0009](docs/adr/0009-extraccion-pdfium.md) — Extraer el texto de los PDF con PDFium en WebAssembly
 - [ADR-0010](docs/adr/0010-trabajos-con-cloud-tasks.md) — Ejecutar los trabajos en pasadas despachadas por Cloud Tasks
+- [ADR-0011](docs/adr/0011-recuperacion-y-modo-degradado.md) — Recuperar con búsqueda exacta y responder sin generación como modo degradado
 
 ## Contribuir
 
