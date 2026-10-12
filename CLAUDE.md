@@ -40,17 +40,23 @@ contra el código y contra `gh issue list`.
   migra al arrancar si `DATABASE_URL` está definida (en Cloud Run viene del
   secreto `database-url`); sin ella, los endpoints de documentos responden
   503.
-- El contenido de un documento subido se usa para calcular su hash y luego
-  se descarta: todavía no se guarda en ninguna parte (#24).
+- Al subir un PDF, `rag.Service.Submit` extrae su texto, lo fragmenta y
+  guarda documento, trabajo y fragmentos en una transacción, dentro de la
+  misma petición. El PDF original no se conserva: solo su hash y sus
+  fragmentos. Los fragmentos no tienen embeddings todavía (#24).
+- El gateway acepta una subida a la vez (503 a la segunda): la memoria de
+  la instancia alcanza para el motor de extracción y un archivo, no para
+  varios.
 - Leer y consultar es público. Subir y eliminar documentos exige el token
   de escritura (`API_WRITE_TOKEN`; en Cloud Run, el secreto
   `api-write-token`). Sin token configurado, esas operaciones rechazan todo.
-- Existen la extracción de texto de PDF (`internal/rag/pdftext`) y la
-  fragmentación por estructura (`internal/rag/chunk`), probadas con una RCA
-  real en `internal/rag/testdata`. Ningún endpoint las usa todavía.
-- No hay ingesta, ni búsqueda, ni llamadas a modelos.
+- La extracción (`internal/rag/pdftext`) y la fragmentación
+  (`internal/rag/chunk`) se prueban con una RCA real en
+  `internal/rag/testdata`.
+- No hay embeddings, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
-  con una sola instancia como máximo.
+  con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
+  por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
 - Límite de 60 peticiones por minuto por origen (ráfaga de 30), en memoria,
   activo por omisión; `/health` está exento. El origen es el último valor
   de `X-Forwarded-For`, que agrega Google y el cliente no puede falsear.
@@ -100,8 +106,7 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
   mover la clave al proyecto del servicio. Ningún fragmento puede superar
   los 2.048 tokens.
 - **Extracción de PDF con PDFium en WebAssembly** (ADR-0009), sin CGO. El
-  motor reserva unos 310 MiB: antes de conectarlo al servicio hay que subir
-  la memoria de Cloud Run a 512 MiB (#34). `go-pdfium` está fijado en la
+  motor reserva unos 310 MiB, medidos; por eso el servicio corre con 512. `go-pdfium` está fijado en la
   1.19.8, la última que admite Go 1.25.
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
