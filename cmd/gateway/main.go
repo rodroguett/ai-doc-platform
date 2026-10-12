@@ -70,10 +70,11 @@ func run() error {
 		// Sin clave no hay embeddings: los documentos se registran con sus
 		// fragmentos y sus trabajos quedan en cola.
 		var local *dispatch.InProcess
+		var embedder *gemini.Client
 		if cfg.GeminiAPIKey == "" {
-			slog.Warn("GEMINI_API_KEY no está definida; los trabajos de ingesta quedan en cola")
+			slog.Warn("GEMINI_API_KEY no está definida; los trabajos de ingesta quedan en cola y no hay consultas")
 		} else {
-			embedder, err := gemini.New(gemini.Config{APIKey: cfg.GeminiAPIKey})
+			embedder, err = gemini.New(gemini.Config{APIKey: cfg.GeminiAPIKey})
 			if err != nil {
 				return err
 			}
@@ -104,8 +105,14 @@ func run() error {
 
 		// Las consultas necesitan convertir la pregunta en vector: sin
 		// proveedor de embeddings no hay cómo buscar.
-		if deps.Embedder != nil {
-			services.Queries = orchestrator.NewService(orchestrator.Config{Retriever: documents})
+		if embedder != nil {
+			// El modelo principal y su respaldo los fija ADR-0012. Si
+			// ninguno responde, la consulta se entrega en modo degradado.
+			generator, err := embedder.Generator(gemini.ModelFlashLite, gemini.ModelFlashLiteFallback)
+			if err != nil {
+				return err
+			}
+			services.Queries = orchestrator.NewService(orchestrator.Config{Retriever: documents, Generator: generator})
 		}
 		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}

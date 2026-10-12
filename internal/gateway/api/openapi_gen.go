@@ -238,7 +238,7 @@ type Trace struct {
 
 	// Provider Proveedor que redactó la respuesta, o `none` si ninguno
 	//
-	// Examples: none
+	// Examples: gemini
 	Provider string `json:"provider"`
 
 	// Retrieved Solo presente con trace=full

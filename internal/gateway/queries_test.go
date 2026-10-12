@@ -1,12 +1,16 @@
 package gateway
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
 	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
@@ -157,4 +161,48 @@ func TestCreateQueryMapsDomainErrors(t *testing.T) {
 // Sin base de datos o sin proveedor de embeddings no hay cómo buscar.
 func TestCreateQueryWithoutBackend(t *testing.T) {
 	decodeProblem(t, postQuery(t, NewServer(Services{}), `{"question": "¿Qué pozos se monitorean?"}`), http.StatusServiceUnavailable)
+}
+
+// fixedQueries devuelve siempre la misma respuesta.
+type fixedQueries struct{ answer orchestrator.Answer }
+
+func (f fixedQueries) Answer(context.Context, orchestrator.Query) (orchestrator.Answer, error) {
+	return f.answer, nil
+}
+
+// Una respuesta redactada por un modelo llega con su procedencia y su
+// consumo en la traza.
+func TestCreateQueryReportsGeneratedAnswer(t *testing.T) {
+	chunkID, documentID := uuid.New(), uuid.New()
+	s := NewServer(Services{Queries: fixedQueries{answer: orchestrator.Answer{
+		ID:   uuid.New(),
+		Text: "Se monitorea MP-10 y MPS [1].",
+		Citations: []orchestrator.Citation{{
+			ChunkID: chunkID, DocumentID: documentID, Source: "RCA Tres Valles",
+			Locator: "Considerando 10.1, págs. 89-90", Score: 0.735, Excerpt: "10.1. Plan de Seguimiento…",
+		}},
+		Trace: orchestrator.Trace{
+			ID: "0123456789abcdef0123456789abcdef", Provider: "gemini", Model: "gemini-3.5-flash-lite",
+			Cache:   orchestrator.CacheMiss,
+			Tokens:  orchestrator.TokenUsage{Prompt: 3019, Completion: 151},
+			Latency: orchestrator.Latency{Total: 2300 * time.Millisecond, Retrieval: 300 * time.Millisecond, Generation: 2000 * time.Millisecond},
+		},
+	}}})
+
+	var resp api.QueryResponse
+	decodeJSON(t, postQuery(t, s, `{"question": "¿Qué parámetros de calidad del aire se monitorean?"}`), http.StatusOK, &resp)
+
+	if resp.Answer != "Se monitorea MP-10 y MPS [1]." || len(resp.Citations) != 1 || resp.Citations[0].ChunkId != chunkID {
+		t.Errorf("respuesta inesperada: %q con %d citas", resp.Answer, len(resp.Citations))
+	}
+	tr := resp.Trace
+	if tr.Provider != "gemini" || tr.Model != "gemini-3.5-flash-lite" || tr.Degraded == nil || *tr.Degraded {
+		t.Errorf("got proveedor %q, modelo %q, degradado %v", tr.Provider, tr.Model, tr.Degraded)
+	}
+	if tr.Tokens == nil || *tr.Tokens.Prompt != 3019 || *tr.Tokens.Completion != 151 {
+		t.Errorf("got tokens %+v", tr.Tokens)
+	}
+	if *tr.LatencyMs.Total != 2300 || *tr.LatencyMs.Retrieval != 300 || *tr.LatencyMs.Generation != 2000 {
+		t.Errorf("got latencias %+v", tr.LatencyMs)
+	}
 }
