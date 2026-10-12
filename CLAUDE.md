@@ -64,7 +64,7 @@ contra el código y contra `gh issue list`.
   24.000 tokens por minuto y cuenta su propio consumo. `rag` lo consume a
   través de su propia interfaz `rag.Embedder`.
 - `internal/orchestrator` responde las consultas: pide los pasajes a
-  `rag.Service.Search`, descarta los que puntúan bajo 0,55 y los devuelve
+  `rag.Service.Search`, descarta los que puntúan bajo 0,60 y los devuelve
   como citas. No hay generación: la respuesta entrega los pasajes y la
   traza marca `degraded`. Caché de 10 minutos y tope de 500 consultas
   nuevas por día, ambos en memoria. ADR-0011.

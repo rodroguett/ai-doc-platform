@@ -34,11 +34,12 @@ const (
 	// parecido", aunque no tenga relación con la pregunta: sin este piso,
 	// una pregunta ajena al corpus recibiría citas.
 	//
-	// El valor es provisional. Sale de una sola medición con el modelo de
-	// ADR-0008: los pasajes pertinentes puntuaron entre 0,63 y 0,76, y los
-	// de una pregunta ajena al documento, 0,51. Debe calibrarse con el
-	// conjunto de preguntas de evaluación.
-	minScore = 0.55
+	// El valor queda en medio de la brecha medida con el modelo de ADR-0008
+	// sobre la RCA de prueba completa: en siete preguntas que el documento
+	// responde, ningún pasaje entre los cuatro primeros bajó de 0,659; en
+	// dos ajenas al documento, ninguno pasó de 0,542. Son nueve preguntas:
+	// alcanza para ubicar el piso, no para darlo por calibrado (ADR-0011).
+	minScore = 0.60
 
 	// maxExcerptChars es el largo del extracto de una cita.
 	maxExcerptChars = 700
