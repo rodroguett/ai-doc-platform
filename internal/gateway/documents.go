@@ -9,6 +9,8 @@ import (
 	"mime/multipart"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/rodroguett/ai-doc-platform/internal/gateway/api"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
@@ -69,6 +71,28 @@ func (a *API) GetJob(ctx context.Context, req api.GetJobRequestObject) (api.GetJ
 		return nil, err
 	}
 	return api.GetJob200JSONResponse(toJob(job)), nil
+}
+
+// RunJob ejecuta una pasada de un trabajo. Lo invoca Cloud Tasks, con el
+// token de escritura, y el trabajo ocurre dentro de esta petición: es la
+// forma de tener CPU fuera de la petición que subió el documento.
+//
+// Si el proveedor de embeddings no responde devuelve 503, que es lo que hace
+// que la cola reintente más tarde.
+func (a *API) RunJob(ctx context.Context, req api.RunJobRequestObject) (api.RunJobResponseObject, error) {
+	if a.svc.Documents == nil {
+		return nil, errNoDatabase
+	}
+	job, err := a.svc.Documents.RunJob(ctx, req.JobId)
+	if err != nil {
+		return nil, err
+	}
+	return api.RunJob200JSONResponse(toJob(job)), nil
+}
+
+// RunJobPath es la ruta que ejecuta una pasada del trabajo.
+func RunJobPath(jobID uuid.UUID) string {
+	return "/v1/jobs/" + jobID.String() + "/run"
 }
 
 func (a *API) GetDocument(ctx context.Context, req api.GetDocumentRequestObject) (api.GetDocumentResponseObject, error) {

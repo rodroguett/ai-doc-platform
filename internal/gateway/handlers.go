@@ -22,6 +22,9 @@ type DocumentService interface {
 	Document(ctx context.Context, id uuid.UUID) (rag.Document, error)
 	Documents(ctx context.Context, opts rag.ListOptions) (rag.Page, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// RunJob ejecuta una pasada del trabajo y devuelve su estado.
+	RunJob(ctx context.Context, id uuid.UUID) (rag.Job, error)
 }
 
 // Services agrupa las dependencias de los handlers. Cada una está detrás de

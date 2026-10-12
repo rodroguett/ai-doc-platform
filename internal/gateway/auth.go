@@ -19,6 +19,7 @@ import (
 var protectedOperations = map[string]bool{
 	"CreateDocument": true,
 	"DeleteDocument": true,
+	"RunJob":         true,
 }
 
 var errUnauthorized = newServiceError(

@@ -122,6 +122,9 @@ func fromDomainError(err error) error {
 	case errors.Is(err, rag.ErrDuplicate):
 		return newServiceError("conflict", "Documento duplicado", http.StatusConflict,
 			"Ese contenido ya fue registrado en la colección.")
+	case errors.Is(err, rag.ErrUnavailable):
+		return newServiceError("unavailable", "Servicio no disponible", http.StatusServiceUnavailable,
+			"Una dependencia externa no responde. Reintente más tarde.")
 	}
 	return err
 }

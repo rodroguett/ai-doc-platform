@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -290,5 +291,121 @@ func TestDocumentExists(t *testing.T) {
 		if err != nil || got != tt.want {
 			t.Errorf("%s/%s: got %v, err %v; want %v", tt.collection, tt.sha, got, err, tt.want)
 		}
+	}
+}
+
+// Una reserva vencida puede tomarla otra pasada: una que murió sin liberar
+// no deja el trabajo trabado para siempre.
+func TestClaimJobLeaseExpires(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	doc, job := newDocument("aaaa")
+	if _, _, err := s.CreateDocument(ctx, doc, job, newChunks(1)); err != nil {
+		t.Fatalf("crear: %v", err)
+	}
+
+	claimed, ok, err := s.ClaimJob(ctx, job.ID, time.Hour)
+	if err != nil || !ok || claimed.Status != rag.JobRunning {
+		t.Fatalf("primera reserva: ok %v, estado %q, err %v", ok, claimed.Status, err)
+	}
+	if got, err := s.Document(ctx, doc.ID); err != nil || got.Status != rag.DocumentProcessing {
+		t.Errorf("got documento %q, err %v; want processing", got.Status, err)
+	}
+
+	// Mientras la reserva está vigente, nadie más lo toma.
+	if current, ok, err := s.ClaimJob(ctx, job.ID, time.Hour); err != nil || ok || current.Status != rag.JobRunning {
+		t.Errorf("segunda reserva: ok %v, estado %q, err %v; want rechazada", ok, current.Status, err)
+	}
+
+	// Liberada, sí.
+	if err := s.ReleaseJob(ctx, job.ID); err != nil {
+		t.Fatalf("liberar: %v", err)
+	}
+	if _, ok, err := s.ClaimJob(ctx, job.ID, -time.Second); err != nil || !ok {
+		t.Fatalf("reserva tras liberar: ok %v, err %v", ok, err)
+	}
+
+	// Esa última reserva nació vencida: otra pasada puede tomarla sin que
+	// nadie la libere.
+	if _, ok, err := s.ClaimJob(ctx, job.ID, time.Hour); err != nil || !ok {
+		t.Errorf("reserva sobre una vencida: ok %v, err %v; want aceptada", ok, err)
+	}
+
+	if _, _, err := s.ClaimJob(ctx, uuid.Must(uuid.NewV7()), time.Hour); !errors.Is(err, rag.ErrNotFound) {
+		t.Errorf("trabajo inexistente: got %v, want ErrNotFound", err)
+	}
+}
+
+func TestSaveEmbeddingsAndFinish(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.Migrate(ctx, pool, rag.Migrations()); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	s := store.New(pool)
+	doc, job := newDocument("aaaa")
+	chunks := newChunks(4)
+	if _, _, err := s.CreateDocument(ctx, doc, job, chunks); err != nil {
+		t.Fatalf("crear: %v", err)
+	}
+
+	vector := make([]float32, 768)
+	vector[0], vector[767] = 0.6, -0.8
+
+	updated, err := s.SaveEmbeddings(ctx, job.ID, "modelo-x", []rag.ChunkEmbedding{{ChunkID: chunks[0].ID, Vector: vector}})
+	if err != nil {
+		t.Fatalf("guardar: %v", err)
+	}
+	if updated.Progress != 25 {
+		t.Errorf("got avance %d %%, want 25", updated.Progress)
+	}
+
+	// El vector se recupera con los mismos valores.
+	var first, last float32
+	var model string
+	err = pool.QueryRow(ctx, `
+		SELECT (embedding::real[])[1], (embedding::real[])[768], embedding_model
+		FROM chunks WHERE id = $1`, chunks[0].ID).Scan(&first, &last, &model)
+	if err != nil || first != 0.6 || last != -0.8 || model != "modelo-x" {
+		t.Errorf("got %v, %v, %q, err %v; want 0.6, -0.8, modelo-x", first, last, model, err)
+	}
+
+	pending, err := s.PendingChunks(ctx, doc.ID, 10)
+	if err != nil || len(pending) != 3 || pending[0].ID != chunks[1].ID {
+		t.Fatalf("got %d pendientes, err %v; want 3 a partir del segundo", len(pending), err)
+	}
+	if limited, err := s.PendingChunks(ctx, doc.ID, 2); err != nil || len(limited) != 2 {
+		t.Errorf("con límite 2: got %d, err %v", len(limited), err)
+	}
+
+	finished, err := s.FinishJob(ctx, job.ID, rag.JobFailed, "No se pudo.")
+	if err != nil || finished.Status != rag.JobFailed || finished.Error != "No se pudo." || finished.Progress != 25 {
+		t.Errorf("cierre fallido: %+v, err %v", finished, err)
+	}
+	if got, err := s.Document(ctx, doc.ID); err != nil || got.Status != rag.DocumentFailed {
+		t.Errorf("got documento %q, err %v; want failed", got.Status, err)
+	}
+	// Un trabajo cerrado no se puede reservar.
+	if _, ok, err := s.ClaimJob(ctx, job.ID, time.Hour); err != nil || ok {
+		t.Errorf("reserva de un trabajo cerrado: ok %v, err %v; want rechazada", ok, err)
+	}
+}
+
+// Un vector de otra dimensión no puede guardarse: la columna la fija.
+func TestSaveEmbeddingsRejectsWrongDimension(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	doc, job := newDocument("aaaa")
+	chunks := newChunks(1)
+	if _, _, err := s.CreateDocument(ctx, doc, job, chunks); err != nil {
+		t.Fatalf("crear: %v", err)
+	}
+
+	_, err := s.SaveEmbeddings(ctx, job.ID, "modelo-x", []rag.ChunkEmbedding{{ChunkID: chunks[0].ID, Vector: make([]float32, 3)}})
+	if err == nil {
+		t.Fatal("se aceptó un vector de 3 dimensiones")
+	}
+	if pending, err := s.PendingChunks(ctx, doc.ID, 10); err != nil || len(pending) != 1 {
+		t.Errorf("got %d pendientes, err %v; want 1", len(pending), err)
 	}
 }

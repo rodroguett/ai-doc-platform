@@ -40,10 +40,16 @@ contra el código y contra `gh issue list`.
   migra al arrancar si `DATABASE_URL` está definida (en Cloud Run viene del
   secreto `database-url`); sin ella, los endpoints de documentos responden
   503.
-- Al subir un PDF, `rag.Service.Submit` extrae su texto, lo fragmenta y
-  guarda documento, trabajo y fragmentos en una transacción, dentro de la
-  misma petición. El PDF original no se conserva: solo su hash y sus
-  fragmentos. Los fragmentos no tienen embeddings todavía (#24).
+- Al subir un PDF, `rag.Service.Submit` extrae su texto, lo fragmenta,
+  guarda documento, trabajo y fragmentos en una transacción y encola el
+  trabajo, todo dentro de la misma petición. El PDF original no se
+  conserva: solo su hash y sus fragmentos.
+- `rag.Service.RunJob` ejecuta una pasada de un minuto: genera embeddings
+  de los fragmentos pendientes y los guarda de a ocho. Lo invoca
+  `POST /v1/jobs/{id}/run`, protegida con el token de escritura. En Cloud
+  Run esa petición la hace Cloud Tasks (cola `ingest`, variables
+  `CLOUD_TASKS_QUEUE` y `SERVICE_URL`); sin cola, una goroutine
+  (`internal/rag/dispatch`). ADR-0010.
 - El gateway acepta una subida a la vez (503 a la segunda): la memoria de
   la instancia alcanza para el motor de extracción y un archivo, no para
   varios.
@@ -55,8 +61,8 @@ contra el código y contra `gh issue list`.
   `internal/rag/testdata`.
 - `internal/llmgw` genera embeddings con Gemini (`internal/llmgw/gemini`),
   por HTTP y sin SDK. Reintenta fallas transitorias, regula el ritmo a
-  24.000 tokens por minuto y cuenta su propio consumo. Nada lo usa todavía:
-  los fragmentos siguen sin embeddings (#24).
+  24.000 tokens por minuto y cuenta su propio consumo. `rag` lo consume a
+  través de su propia interfaz `rag.Embedder`.
 - No hay búsqueda ni generación de respuestas.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
@@ -112,6 +118,11 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 - **Extracción de PDF con PDFium en WebAssembly** (ADR-0009), sin CGO. El
   motor reserva unos 310 MiB, medidos; por eso el servicio corre con 512. `go-pdfium` está fijado en la
   1.19.8, la última que admite Go 1.25.
+- **Trabajos en pasadas despachadas por Cloud Tasks** (ADR-0010). El
+  avance vive en la base de datos: una pasada pregunta qué fragmentos no
+  tienen vector y sigue desde ahí. No usar goroutines para trabajo en
+  segundo plano en Cloud Run: la CPU se retira al responder. La cola
+  `ingest` se creó a mano y no está en el repositorio.
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
   `protectedOperations` (`internal/gateway/auth.go`); un test verifica que

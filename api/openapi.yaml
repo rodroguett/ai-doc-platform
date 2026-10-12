@@ -190,6 +190,44 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  /jobs/{jobId}/run:
+    parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [jobs]
+      summary: Ejecuta una pasada de un trabajo
+      description: |
+        Procesa el trabajo durante un tiempo acotado y devuelve su estado. Si
+        queda trabajo pendiente, la siguiente pasada se encola sola.
+
+        El sistema la invoca por sí mismo después de registrar un documento;
+        no hace falta llamarla. Queda disponible para relanzar un trabajo que
+        se detuvo. Invocarla sobre un trabajo terminado, o que ya se está
+        ejecutando, devuelve su estado sin efecto.
+      operationId: runJob
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Estado del trabajo tras la pasada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503':
+          description: |
+            El proveedor de embeddings no responde. El trabajo sigue en curso
+            y la pasada puede reintentarse.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
   /usage:
     get:
       tags: [usage]

@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -146,21 +148,12 @@ func (s *Store) Document(ctx context.Context, id uuid.UUID) (rag.Document, error
 // Job devuelve un trabajo, o rag.ErrNotFound si no existe.
 func (s *Store) Job(ctx context.Context, id uuid.UUID) (rag.Job, error) {
 	job := rag.Job{ID: id}
-	var jobErr *string
-	err := s.pool.QueryRow(ctx, `
-		SELECT kind, status, progress, document_id, error, created_at, updated_at
-		FROM jobs
-		WHERE id = $1`, id,
-	).Scan(&job.Kind, &job.Status, &job.Progress, &job.DocumentID,
-		&jobErr, &job.CreatedAt, &job.UpdatedAt)
+	err := scanJob(s.pool.QueryRow(ctx, `SELECT `+jobColumns+` FROM jobs WHERE id = $1`, id), &job)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return rag.Job{}, rag.ErrNotFound
 	}
 	if err != nil {
 		return rag.Job{}, fmt.Errorf("leer el trabajo: %w", err)
-	}
-	if jobErr != nil {
-		job.Error = *jobErr
 	}
 	return job, nil
 }
@@ -219,3 +212,191 @@ func (s *Store) DeleteDocument(ctx context.Context, id uuid.UUID) error {
 }
 
 var _ rag.Store = (*Store)(nil)
+
+const jobColumns = `kind, status, progress, document_id, error, created_at, updated_at`
+
+func scanJob(row pgx.Row, job *rag.Job) error {
+	var jobErr *string
+	if err := row.Scan(&job.Kind, &job.Status, &job.Progress, &job.DocumentID,
+		&jobErr, &job.CreatedAt, &job.UpdatedAt); err != nil {
+		return err
+	}
+	job.Error = ""
+	if jobErr != nil {
+		job.Error = *jobErr
+	}
+	return nil
+}
+
+// ClaimJob reserva un trabajo pendiente o en curso por la duración indicada,
+// y lo deja en curso junto con su documento. Devuelve false, con el estado
+// actual del trabajo, si ya terminó o si otra pasada lo tiene reservado.
+//
+// La reserva vence sola: una pasada que muere sin liberar no deja el trabajo
+// trabado para siempre.
+func (s *Store) ClaimJob(ctx context.Context, id uuid.UUID, lease time.Duration) (rag.Job, bool, error) {
+	job := rag.Job{ID: id}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return rag.Job{}, false, fmt.Errorf("iniciar la transacción: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	err = scanJob(tx.QueryRow(ctx, `
+		UPDATE jobs
+		SET status = 'running', locked_until = now() + make_interval(secs => $2), updated_at = now()
+		WHERE id = $1
+		  AND status IN ('queued', 'running')
+		  AND (locked_until IS NULL OR locked_until < now())
+		RETURNING `+jobColumns, id, lease.Seconds()), &job)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No se pudo reservar: o no existe, o terminó, o está reservado.
+		current, err := s.Job(ctx, id)
+		return current, false, err
+	}
+	if err != nil {
+		return rag.Job{}, false, fmt.Errorf("reservar el trabajo: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE documents SET status = 'processing' WHERE id = $1 AND status = 'pending'`,
+		job.DocumentID); err != nil {
+		return rag.Job{}, false, fmt.Errorf("marcar el documento en proceso: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return rag.Job{}, false, fmt.Errorf("confirmar la transacción: %w", err)
+	}
+	return job, true, nil
+}
+
+// ReleaseJob libera la reserva de un trabajo sin cambiar su estado.
+func (s *Store) ReleaseJob(ctx context.Context, id uuid.UUID) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE jobs SET locked_until = NULL WHERE id = $1`, id); err != nil {
+		return fmt.Errorf("liberar el trabajo: %w", err)
+	}
+	return nil
+}
+
+// PendingChunks devuelve hasta limit fragmentos del documento que aún no
+// tienen embedding, en orden.
+func (s *Store) PendingChunks(ctx context.Context, documentID uuid.UUID, limit int) ([]rag.Chunk, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, position, section, heading, page_start, page_end, content
+		FROM chunks
+		WHERE document_id = $1 AND embedding IS NULL
+		ORDER BY position
+		LIMIT $2`, documentID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listar los fragmentos pendientes: %w", err)
+	}
+	chunks, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Chunk, error) {
+		var c rag.Chunk
+		err := row.Scan(&c.ID, &c.Index, &c.Section, &c.Heading, &c.PageStart, &c.PageEnd, &c.Text)
+		return c, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leer los fragmentos pendientes: %w", err)
+	}
+	return chunks, nil
+}
+
+// SaveEmbeddings guarda los vectores de un grupo de fragmentos y actualiza
+// el avance del trabajo, en una transacción: el avance informado nunca se
+// adelanta a lo que efectivamente quedó guardado.
+func (s *Store) SaveEmbeddings(ctx context.Context, jobID uuid.UUID, model string, embeddings []rag.ChunkEmbedding) (rag.Job, error) {
+	job := rag.Job{ID: jobID}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return rag.Job{}, fmt.Errorf("iniciar la transacción: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	batch := &pgx.Batch{}
+	for _, e := range embeddings {
+		batch.Queue(`UPDATE chunks SET embedding = $1::public.vector, embedding_model = $2 WHERE id = $3`,
+			vectorLiteral(e.Vector), model, e.ChunkID)
+	}
+	if err := tx.SendBatch(ctx, batch).Close(); err != nil {
+		return rag.Job{}, fmt.Errorf("guardar los embeddings: %w", err)
+	}
+
+	err = scanJob(tx.QueryRow(ctx, `
+		UPDATE jobs
+		SET progress = (
+			SELECT CASE WHEN count(*) = 0 THEN 0
+			            ELSE (count(*) FILTER (WHERE c.embedding IS NOT NULL)) * 100 / count(*) END
+			FROM chunks c WHERE c.document_id = jobs.document_id
+		), updated_at = now()
+		WHERE id = $1
+		RETURNING `+jobColumns, jobID), &job)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return rag.Job{}, rag.ErrNotFound
+	}
+	if err != nil {
+		return rag.Job{}, fmt.Errorf("actualizar el avance: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return rag.Job{}, fmt.Errorf("confirmar la transacción: %w", err)
+	}
+	return job, nil
+}
+
+// FinishJob cierra un trabajo como exitoso o fallido, deja a su documento en
+// el estado correspondiente y libera la reserva.
+func (s *Store) FinishJob(ctx context.Context, id uuid.UUID, status rag.JobStatus, message string) (rag.Job, error) {
+	job := rag.Job{ID: id}
+	documentStatus := rag.DocumentReady
+	if status != rag.JobSucceeded {
+		documentStatus = rag.DocumentFailed
+	}
+	var jobErr *string
+	if message != "" {
+		jobErr = &message
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return rag.Job{}, fmt.Errorf("iniciar la transacción: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	err = scanJob(tx.QueryRow(ctx, `
+		UPDATE jobs
+		SET status = $2, error = $3, locked_until = NULL, updated_at = now(),
+		    progress = CASE WHEN $2 = 'succeeded' THEN 100 ELSE progress END
+		WHERE id = $1
+		RETURNING `+jobColumns, id, status, jobErr), &job)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return rag.Job{}, rag.ErrNotFound
+	}
+	if err != nil {
+		return rag.Job{}, fmt.Errorf("cerrar el trabajo: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE documents SET status = $2 WHERE id = $1`, job.DocumentID, documentStatus); err != nil {
+		return rag.Job{}, fmt.Errorf("actualizar el documento: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return rag.Job{}, fmt.Errorf("confirmar la transacción: %w", err)
+	}
+	return job, nil
+}
+
+// vectorLiteral escribe un vector en el formato de texto de pgvector.
+func vectorLiteral(v []float32) string {
+	var b strings.Builder
+	b.Grow(len(v) * 12)
+	b.WriteByte('[')
+	for i, x := range v {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(strconv.FormatFloat(float64(x), 'g', -1, 32))
+	}
+	b.WriteByte(']')
+	return b.String()
+}

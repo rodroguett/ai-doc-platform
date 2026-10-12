@@ -58,7 +58,7 @@ func newFixture(t *testing.T) fixture {
 	calls := 0
 	st := store.New(pool)
 	return fixture{
-		service:     rag.NewService(st, countingExtractor{calls: &calls}, twoPerPage),
+		service:     rag.NewService(rag.Deps{Store: st, Extractor: countingExtractor{calls: &calls}, Split: twoPerPage}),
 		store:       st,
 		extractions: &calls,
 	}
@@ -311,7 +311,7 @@ func TestSubmitRejectsDocumentWithoutChunks(t *testing.T) {
 	}
 	calls := 0
 	noChunks := func([]rag.PageText) []rag.Chunk { return nil }
-	s := rag.NewService(store.New(pool), countingExtractor{calls: &calls}, noChunks)
+	s := rag.NewService(rag.Deps{Store: store.New(pool), Extractor: countingExtractor{calls: &calls}, Split: noChunks})
 
 	_, err := s.Submit(ctx, rag.Upload{Filename: "a.pdf", Collection: "rca", Content: []byte("%PDF vacío")})
 
@@ -331,7 +331,7 @@ func TestSubmitRealDocument(t *testing.T) {
 	extractor := pdftext.New()
 	t.Cleanup(func() { _ = extractor.Close() })
 	st := store.New(pool)
-	s := rag.NewService(st, extractor, chunk.Split)
+	s := rag.NewService(rag.Deps{Store: st, Extractor: extractor, Split: chunk.Split})
 
 	data, err := os.ReadFile("testdata/rca-tres-valles.pdf")
 	if err != nil {
