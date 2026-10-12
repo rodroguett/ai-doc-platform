@@ -4,3 +4,6 @@ tmp/
 docs/
 *.md
 .github/
+
+# Los documentos de prueba no forman parte de la imagen.
+**/testdata/

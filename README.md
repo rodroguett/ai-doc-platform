@@ -35,7 +35,7 @@ datos de ejemplo.
 | Módulo | Estado |
 |---|---|
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
-| `rag` | Registro, consulta, listado paginado y eliminación de documentos y trabajos. Pendiente: ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
+| `rag` | Registro, consulta, listado paginado y eliminación de documentos y trabajos. Extracción del texto de un PDF y fragmentación por considerandos y secciones, todavía sin conectar a la subida. Pendiente: ingesta ([#24](https://github.com/rodroguett/ai-doc-platform/issues/24)) y búsqueda ([#25](https://github.com/rodroguett/ai-doc-platform/issues/25)) |
 | `orchestrator` | Pendiente |
 | `llmgw` | Pendiente |
 
@@ -234,6 +234,7 @@ bien no es un registro, es publicidad.
 - [ADR-0006](docs/adr/0006-postgres-pgvector.md) — Persistir en Postgres con pgvector y migrar al arrancar
 - [ADR-0007](docs/adr/0007-token-de-escritura.md) — Proteger las escrituras con un token único
 - [ADR-0008](docs/adr/0008-embeddings-gemini.md) — Generar los embeddings con Gemini en su capa gratuita
+- [ADR-0009](docs/adr/0009-extraccion-pdfium.md) — Extraer el texto de los PDF con PDFium en WebAssembly
 
 ## Contribuir
 

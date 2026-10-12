@@ -45,6 +45,9 @@ contra el código y contra `gh issue list`.
 - Leer y consultar es público. Subir y eliminar documentos exige el token
   de escritura (`API_WRITE_TOKEN`; en Cloud Run, el secreto
   `api-write-token`). Sin token configurado, esas operaciones rechazan todo.
+- Existen la extracción de texto de PDF (`internal/rag/pdftext`) y la
+  fragmentación por estructura (`internal/rag/chunk`), probadas con una RCA
+  real en `internal/rag/testdata`. Ningún endpoint las usa todavía.
 - No hay ingesta, ni búsqueda, ni llamadas a modelos.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo.
@@ -96,6 +99,10 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
   sin facturación: es lo que impide un cobro. No asociarle facturación ni
   mover la clave al proyecto del servicio. Ningún fragmento puede superar
   los 2.048 tokens.
+- **Extracción de PDF con PDFium en WebAssembly** (ADR-0009), sin CGO. El
+  motor reserva unos 310 MiB: antes de conectarlo al servicio hay que subir
+  la memoria de Cloud Run a 512 MiB (#34). `go-pdfium` está fijado en la
+  1.19.8, la última que admite Go 1.25.
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
   `protectedOperations` (`internal/gateway/auth.go`); un test verifica que
@@ -115,7 +122,8 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
 ./scripts/bootstrap.sh   # instala herramientas en las versiones declaradas
 make run                 # levanta el gateway en :8080, sin base de datos
 make run-db              # lo mismo, con un Postgres local en Docker
-make test                # tests con detector de carrera; requiere Docker
+make test                # tests con detector de carrera; requiere Docker.
+                         # Tarda uno o dos minutos por los tests de PDF
 make db-down             # elimina el Postgres local
 make lint                # golangci-lint
 make generate            # regenera el código desde el contrato
