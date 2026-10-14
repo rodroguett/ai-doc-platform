@@ -31,7 +31,7 @@ const (
 	cacheTTL        = 10 * time.Minute
 	maxCacheEntries = 500
 
-	// minScore es la similitud bajo la cual un pasaje no se considera
+	// MinScore es la similitud bajo la cual un pasaje no se considera
 	// sustento de una respuesta. La búsqueda siempre devuelve "lo más
 	// parecido", aunque no tenga relación con la pregunta: sin este piso,
 	// una pregunta ajena al corpus recibiría citas.
@@ -41,7 +41,7 @@ const (
 	// responde, ningún pasaje entre los cuatro primeros bajó de 0,659; en
 	// dos ajenas al documento, ninguno pasó de 0,542. Son nueve preguntas:
 	// alcanza para ubicar el piso, no para darlo por calibrado (ADR-0011).
-	minScore = 0.60
+	MinScore = 0.60
 
 	// maxExcerptChars es el largo del extracto de una cita.
 	maxExcerptChars = 700
@@ -139,7 +139,7 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 	// respuesta son un prefijo.
 	passages := retrieved
 	for i, p := range retrieved {
-		if p.Score < minScore {
+		if p.Score < MinScore {
 			passages = retrieved[:i]
 			break
 		}
