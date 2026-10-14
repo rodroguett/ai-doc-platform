@@ -397,15 +397,20 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 	return s.store.Search(ctx, vector, s.embedder.Model(), opts)
 }
 
-// embeddingInput es el texto de un fragmento que se convierte en vector.
-// Cuando una sección se dividió en varios fragmentos, solo el primero lleva
-// su título en el texto: a los demás se les antepone, para que el vector
-// sepa de qué trata el pasaje.
+// embeddingInput es el texto de un fragmento que se convierte en vector. Se
+// le antepone lo que el fragmento no dice de sí mismo y es necesario para
+// encontrarlo: la introducción del ítem al que pertenece, y el título de su
+// sección cuando el texto no lo trae, como pasa con la segunda parte de una
+// sección dividida.
 func embeddingInput(c Chunk) string {
-	if c.Heading == "" || strings.Contains(firstLine(c.Text), c.Heading) {
-		return c.Text
+	var parts []string
+	if c.Context != "" {
+		parts = append(parts, c.Context)
 	}
-	return c.Heading + "\n" + c.Text
+	if c.Heading != "" && !strings.Contains(firstLine(c.Text), c.Heading) {
+		parts = append(parts, c.Heading)
+	}
+	return strings.Join(append(parts, c.Text), "\n")
 }
 
 func firstLine(s string) string {

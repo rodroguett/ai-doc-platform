@@ -57,9 +57,11 @@ func TestSplitFollowsDocumentStructure(t *testing.T) {
 		),
 	})
 
+	// La introducción del considerando 2 solo anuncia sus subsecciones: no
+	// es un fragmento propio, sino el contexto de cada una.
 	want := []string{
 		"", "Vistos 1", "Vistos 2",
-		"Considerando 1", "Considerando 2", "Considerando 2.1", "Considerando 2.2",
+		"Considerando 1", "Considerando 2.1", "Considerando 2.2",
 		"Resuelvo 1",
 	}
 	if got := sections(chunks); strings.Join(got, "|") != strings.Join(want, "|") {
@@ -69,6 +71,15 @@ func TestSplitFollowsDocumentStructure(t *testing.T) {
 	air := find(t, chunks, "Considerando 2.1")
 	if air.Heading != "Plan de Seguimiento de Calidad del Aire" {
 		t.Errorf("got título %q", air.Heading)
+	}
+	for _, section := range []string{"Considerando 2.1", "Considerando 2.2"} {
+		if got := find(t, chunks, section).Context; got != "2. Que, el proyecto contempla el siguiente plan:" {
+			t.Errorf("%s: got contexto %q", section, got)
+		}
+	}
+	// Un ítem sin subsecciones no lleva contexto: su texto ya es propio.
+	if got := find(t, chunks, "Considerando 1").Context; got != "" {
+		t.Errorf("Considerando 1: got contexto %q", got)
 	}
 	if air.PageStart != 2 || air.PageEnd != 2 {
 		t.Errorf("got páginas %d-%d, want 2-2", air.PageStart, air.PageEnd)
@@ -147,9 +158,33 @@ func TestSplitDoesNotSwallowHeadings(t *testing.T) {
 		"Contenido del detalle.",
 	)})
 
-	want := []string{"Vistos 1", "Considerando 1", "Considerando 2", "Considerando 2.1"}
+	want := []string{"Vistos 1", "Considerando 1", "Considerando 2.1"}
 	if got := sections(chunks); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("secciones:\n got %q\nwant %q", got, want)
+	}
+	// El considerando 2 no se perdió: es el contexto de su subsección.
+	if got := find(t, chunks, "Considerando 2.1").Context; got != "2. Que, lo segundo." {
+		t.Errorf("got contexto %q", got)
+	}
+}
+
+// Una introducción con contenido propio, no solo un anuncio de lo que sigue,
+// conserva su fragmento.
+func TestSplitKeepsLongIntroductionAsChunk(t *testing.T) {
+	intro := "1. Que, " + strings.Repeat("el Titular describe el proyecto y sus obras en detalle. ", 10)
+	chunks := chunk.Split([]rag.PageText{page(1,
+		"CONSIDERANDO:",
+		intro,
+		"1.1. Antecedentes generales.",
+		"Contenido de los antecedentes.",
+	)})
+
+	want := []string{"Considerando 1", "Considerando 1.1"}
+	if got := sections(chunks); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("secciones:\n got %q\nwant %q", got, want)
+	}
+	if got := find(t, chunks, "Considerando 1.1").Context; got != "" {
+		t.Errorf("una introducción extensa no debe repetirse como contexto: %q", got)
 	}
 }
 
@@ -216,7 +251,7 @@ func TestSplitMergesRepeatedSectionHeading(t *testing.T) {
 		),
 	})
 
-	want := []string{"Considerando 1", "Considerando 1.3"}
+	want := []string{"Considerando 1.3"}
 	if got := sections(chunks); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("secciones:\n got %q\nwant %q", got, want)
 	}

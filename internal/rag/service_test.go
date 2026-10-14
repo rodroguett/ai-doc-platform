@@ -351,13 +351,13 @@ func TestSubmitRealDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("leer el documento: %v", err)
 	}
-	if doc.ChunkCount != 168 || doc.Source != "RCA Continuidad Operacional Minera Tres Valles" {
-		t.Errorf("got %d fragmentos y fuente %q, want 168", doc.ChunkCount, doc.Source)
+	if doc.ChunkCount != 159 || doc.Source != "RCA Continuidad Operacional Minera Tres Valles" {
+		t.Errorf("got %d fragmentos y fuente %q, want 159", doc.ChunkCount, doc.Source)
 	}
 
 	chunks, err := st.Chunks(ctx, job.DocumentID)
-	if err != nil || len(chunks) != 168 {
-		t.Fatalf("got %d fragmentos guardados, err %v; want 168", len(chunks), err)
+	if err != nil || len(chunks) != 159 {
+		t.Fatalf("got %d fragmentos guardados, err %v; want 159", len(chunks), err)
 	}
 	var air *rag.Chunk
 	for i := range chunks {
