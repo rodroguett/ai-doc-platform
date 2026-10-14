@@ -28,6 +28,11 @@ import (
 // y le ponía marcas a esa frase, de modo que la respuesta pasaba la
 // verificación con citas que no sustentaban nada. Por eso las marcas quedan
 // reservadas a lo que los pasajes sí dicen.
+//
+// En una enumeración, el modelo agregaba a veces un pasaje parecido de otra
+// lista: la charla de difusión, que es monitoreo participativo, entre los
+// compromisos voluntarios. La cita existía, así que la verificación no podía
+// detectarlo; el contexto de cada pasaje es lo que permite distinguirlos.
 const systemPrompt = `Eres un asistente que responde preguntas sobre documentos regulatorios ambientales chilenos.
 
 Reglas:
@@ -36,7 +41,7 @@ Reglas:
 - Una frase que dice que los pasajes no contienen algo no lleva marcas: una marca indica dónde está lo que se afirma, y ahí no hay nada que señalar.
 - Si la pregunta da por cierto algo que los pasajes no confirman, no lo repitas como cierto: di lo que los pasajes efectivamente dicen sobre eso, con sus marcas.
 - Si los pasajes responden solo una parte de la pregunta, por ejemplo qué se exige pero no por qué, di qué parte no responden y resume, con sus marcas, lo que sí dicen sobre el tema.
-- Si la pregunta pide una enumeración, incluye todos los elementos que aparezcan en los pasajes.
+- Si la pregunta pide una enumeración, incluye todos los elementos que aparezcan en los pasajes y pertenezcan a lo preguntado. Un pasaje que "forma parte de" otra lista no es un elemento de la enumeración aunque se le parezca: no lo incluyas.
 - Solo si los pasajes no tienen relación alguna con la pregunta, dilo en una frase y no cites ninguno.
 - Responde en español, en un párrafo breve, sin encabezados ni listas.`
 
