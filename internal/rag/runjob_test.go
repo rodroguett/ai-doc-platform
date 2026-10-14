@@ -250,6 +250,37 @@ func TestRunJobGivesContextToContinuationChunks(t *testing.T) {
 	}
 }
 
+// La introducción del ítem al que pertenece un fragmento se antepone al
+// texto que se convierte en vector: "8.3. Plan de monitoreo de aguas" debe
+// poder encontrarse preguntando por los compromisos voluntarios.
+func TestRunJobPrependsItemContext(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.Migrate(ctx, pool, rag.Migrations()); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	calls := 0
+	embedder := &recordingEmbedder{}
+	withContext := func([]rag.PageText) []rag.Chunk {
+		return []rag.Chunk{
+			{Index: 0, Section: "Considerando 8.3", Heading: "Plan de Monitoreo de Aguas Superficiales",
+				Context:   "8. Que, el proyecto contempla realizar los siguientes compromisos ambientales voluntarios:",
+				PageStart: 87, PageEnd: 88, Text: "8.3. Plan de Monitoreo de Aguas Superficiales.\nMonitoreo trimestral."},
+		}
+	}
+	s := rag.NewService(rag.Deps{Store: store.New(pool), Extractor: countingExtractor{calls: &calls}, Split: withContext, Embedder: embedder})
+	job := submit(t, s, "contenido", "rca")
+
+	if _, err := s.RunJob(ctx, job.ID); err != nil {
+		t.Fatalf("ejecutar: %v", err)
+	}
+
+	want := "8. Que, el proyecto contempla realizar los siguientes compromisos ambientales voluntarios:\n8.3. Plan de Monitoreo de Aguas Superficiales.\nMonitoreo trimestral."
+	if got := embedder.seen(); len(got) != 1 || got[0] != want {
+		t.Errorf("got texto para el vector %q,\nwant %q", got, want)
+	}
+}
+
 // Una pasada trabaja un tiempo acotado. Lo que no alcanza queda para la
 // siguiente, que continúa donde quedó sin repetir lo ya hecho.
 func TestRunJobWorksInBoundedPasses(t *testing.T) {

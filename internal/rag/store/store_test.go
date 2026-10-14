@@ -195,6 +195,7 @@ func newChunks(n int) []rag.Chunk {
 			Index:     i,
 			Section:   fmt.Sprintf("Considerando %d", i+1),
 			Heading:   fmt.Sprintf("Título %d", i+1),
+			Context:   fmt.Sprintf("%d. Que, el proyecto contempla lo siguiente:", i+1),
 			PageStart: i + 1,
 			PageEnd:   i + 2,
 			Text:      fmt.Sprintf("Texto del fragmento %d.", i),

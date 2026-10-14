@@ -57,6 +57,12 @@ var partNames = map[string]string{
 // un número de sección.
 const maxHeadingChars = 200
 
+// maxContextChars es el largo bajo el cual la introducción de un ítem con
+// subsecciones se trata como contexto de ellas y no como fragmento propio.
+// Una introducción que solo anuncia una lista tiene una o dos líneas; una
+// con contenido propio, cientos de caracteres.
+const maxContextChars = 400
+
 // line es una línea lógica: un párrafo, un título o una celda, ya reunidas
 // las líneas que el ancho de la página había partido.
 type line struct {
@@ -171,6 +177,11 @@ type builder struct {
 
 	heading string
 	lines   []line
+
+	// context es la introducción breve del ítem en curso, cuando el ítem se
+	// divide en subsecciones: "8. Que, el proyecto contempla los siguientes
+	// compromisos ambientales voluntarios:". Acompaña a cada subsección.
+	context string
 }
 
 func (b *builder) add(l line) {
@@ -178,14 +189,14 @@ func (b *builder) add(l line) {
 	case partPattern.MatchString(l.text):
 		b.flush()
 		b.part = partNames[strings.TrimSpace(strings.TrimSuffix(l.text, ":"))]
-		b.item, b.sub, b.heading = 0, "", ""
+		b.item, b.sub, b.heading, b.context = 0, "", "", ""
 		// El nombre de la parte no lleva contenido propio: no se guarda.
 		return
 
 	case b.startsItem(l.text):
 		b.flush()
 		b.item++
-		b.sub, b.heading = "", ""
+		b.sub, b.heading, b.context = "", "", ""
 
 	case b.startsSubsection(l.text):
 		m := subsectionPattern.FindStringSubmatch(l.text)
@@ -194,7 +205,16 @@ func (b *builder) add(l line) {
 			// página repite su encabezado. No abre una sección nueva.
 			return
 		}
-		b.flush()
+		if b.sub == "" && b.introIsContext() {
+			// La introducción del ítem no dice nada por sí sola: solo
+			// anuncia lo que viene. Como fragmento propio ganaría la
+			// búsqueda sin aportar contenido; como contexto de cada
+			// subsección, les dice a qué pertenecen.
+			b.context = b.text()
+			b.lines = nil
+		} else {
+			b.flush()
+		}
 		b.sub = m[1]
 		b.heading = ""
 		if len(m[2]) <= maxHeadingChars {
@@ -232,6 +252,20 @@ func (b *builder) startsSubsection(text string) bool {
 	return m != nil && strings.HasPrefix(m[1], strconv.Itoa(b.item)+".")
 }
 
+// introIsContext indica si lo acumulado para el ítem, antes de su primera
+// subsección, es una introducción breve y no contenido propio.
+func (b *builder) introIsContext() bool {
+	return len(b.lines) > 0 && len(b.text()) <= maxContextChars
+}
+
+func (b *builder) text() string {
+	texts := make([]string, len(b.lines))
+	for i, l := range b.lines {
+		texts[i] = l.text
+	}
+	return strings.Join(texts, "\n")
+}
+
 func (b *builder) section() string {
 	switch {
 	case b.part == "":
@@ -263,9 +297,14 @@ func (b *builder) flush() {
 		for i, l := range cur {
 			texts[i] = l.text
 		}
+		context := ""
+		if b.sub != "" {
+			context = b.context
+		}
 		b.chunks = append(b.chunks, rag.Chunk{
 			Section:   section,
 			Heading:   b.heading,
+			Context:   context,
 			PageStart: cur[0].pageStart,
 			PageEnd:   cur[len(cur)-1].pageEnd,
 			Text:      strings.Join(texts, "\n"),

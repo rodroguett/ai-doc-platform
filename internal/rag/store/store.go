@@ -76,10 +76,10 @@ func (s *Store) CreateDocument(ctx context.Context, doc rag.Document, job rag.Jo
 	// COPY inserta todos los fragmentos en un solo viaje a la base de datos.
 	_, err = tx.CopyFrom(ctx,
 		pgx.Identifier{"chunks"},
-		[]string{"id", "document_id", "position", "section", "heading", "page_start", "page_end", "content"},
+		[]string{"id", "document_id", "position", "section", "heading", "context", "page_start", "page_end", "content"},
 		pgx.CopyFromSlice(len(chunks), func(i int) ([]any, error) {
 			c := chunks[i]
-			return []any{c.ID, doc.ID, c.Index, c.Section, c.Heading, c.PageStart, c.PageEnd, c.Text}, nil
+			return []any{c.ID, doc.ID, c.Index, c.Section, c.Heading, c.Context, c.PageStart, c.PageEnd, c.Text}, nil
 		}),
 	)
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *Store) DocumentExists(ctx context.Context, collection, contentSHA256 st
 // Chunks devuelve los fragmentos de un documento, en orden.
 func (s *Store) Chunks(ctx context.Context, documentID uuid.UUID) ([]rag.Chunk, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, position, section, heading, page_start, page_end, content
+		SELECT id, position, section, heading, context, page_start, page_end, content
 		FROM chunks
 		WHERE document_id = $1
 		ORDER BY position`, documentID)
@@ -118,7 +118,7 @@ func (s *Store) Chunks(ctx context.Context, documentID uuid.UUID) ([]rag.Chunk, 
 	}
 	chunks, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Chunk, error) {
 		var c rag.Chunk
-		err := row.Scan(&c.ID, &c.Index, &c.Section, &c.Heading, &c.PageStart, &c.PageEnd, &c.Text)
+		err := row.Scan(&c.ID, &c.Index, &c.Section, &c.Heading, &c.Context, &c.PageStart, &c.PageEnd, &c.Text)
 		return c, err
 	})
 	if err != nil {
@@ -283,7 +283,7 @@ func (s *Store) ReleaseJob(ctx context.Context, id uuid.UUID) error {
 // tienen embedding, en orden.
 func (s *Store) PendingChunks(ctx context.Context, documentID uuid.UUID, limit int) ([]rag.Chunk, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, position, section, heading, page_start, page_end, content
+		SELECT id, position, section, heading, context, page_start, page_end, content
 		FROM chunks
 		WHERE document_id = $1 AND embedding IS NULL
 		ORDER BY position
@@ -293,7 +293,7 @@ func (s *Store) PendingChunks(ctx context.Context, documentID uuid.UUID, limit i
 	}
 	chunks, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Chunk, error) {
 		var c rag.Chunk
-		err := row.Scan(&c.ID, &c.Index, &c.Section, &c.Heading, &c.PageStart, &c.PageEnd, &c.Text)
+		err := row.Scan(&c.ID, &c.Index, &c.Section, &c.Heading, &c.Context, &c.PageStart, &c.PageEnd, &c.Text)
 		return c, err
 	})
 	if err != nil {
@@ -423,7 +423,7 @@ func (s *Store) Search(ctx context.Context, vector []float32, model string, opts
 	// su complemento; se acota a cero porque un puntaje negativo no dice
 	// nada útil a quien lee la cita.
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.document_id, d.source, c.section, c.heading, c.page_start, c.page_end, c.content,
+		SELECT c.id, c.document_id, d.source, c.section, c.heading, c.context, c.page_start, c.page_end, c.content,
 		       GREATEST(0, 1 - (c.embedding <=> $1::public.vector)) AS score
 		FROM chunks c
 		JOIN documents d ON d.id = c.document_id
@@ -439,7 +439,7 @@ func (s *Store) Search(ctx context.Context, vector []float32, model string, opts
 
 	passages, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rag.Passage, error) {
 		var p rag.Passage
-		err := row.Scan(&p.ChunkID, &p.DocumentID, &p.Source, &p.Section, &p.Heading,
+		err := row.Scan(&p.ChunkID, &p.DocumentID, &p.Source, &p.Section, &p.Heading, &p.Context,
 			&p.PageStart, &p.PageEnd, &p.Text, &p.Score)
 		return p, err
 	})

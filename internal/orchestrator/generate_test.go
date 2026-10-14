@@ -146,31 +146,75 @@ func TestAnswerNormalizesGroupedCitations(t *testing.T) {
 // Una respuesta que cita un pasaje que no existe, o que no cita ninguno, no
 // se entrega: no hay forma de verificarla. Se muestran los pasajes.
 func TestAnswerRejectsUnsupportedText(t *testing.T) {
-	for name, written := range map[string]string{
-		"cita un pasaje inexistente":      "Se monitorea MP-10 [1] y también ruido [7].",
-		"cita el pasaje cero":             "Se monitorea MP-10 [0].",
-		"no cita ninguno":                 "El proyecto monitorea MP-10 con un límite de 150 ug/m3N.",
-		"dice que no hay información":     "Los pasajes entregados no contienen información sobre eso.",
-		"solo corchetes que no son citas": "Se monitorea MP-10 [según el plan].",
+	const notAnswered, notWritten = "no responden esta pregunta", "No hay una respuesta redactada"
+	for name, tt := range map[string]struct{ written, want string }{
+		"cita un pasaje inexistente":      {"Se monitorea MP-10 [1] y también ruido [7].", notWritten},
+		"cita el pasaje cero":             {"Se monitorea MP-10 [0].", notWritten},
+		"no cita ninguno":                 {"El proyecto monitorea MP-10 con un límite de 150 ug/m3N.", notAnswered},
+		"dice que no hay información":     {"Los pasajes entregados no contienen información sobre eso.", notAnswered},
+		"solo corchetes que no son citas": {"Se monitorea MP-10 [según el plan].", notAnswered},
 	} {
 		t.Run(name, func(t *testing.T) {
-			f := newGenFixture(written)
+			f := newGenFixture(tt.written)
 
 			answer := ask(t, f.service, airQuestion)
 
-			if answer.Text == written || strings.Contains(answer.Text, "150 ug/m3N") {
+			if answer.Text == tt.written || strings.Contains(answer.Text, "150 ug/m3N") {
 				t.Fatalf("se entregó el texto sin sustento: %q", answer.Text)
 			}
 			if !answer.Trace.Degraded {
 				t.Error("la traza debe declarar el modo degradado")
 			}
-			if !strings.Contains(answer.Text, "4 pasajes") || len(answer.Citations) != 4 {
+			// Quien consulta debe poder distinguir que el modelo no
+			// respondió de que respondió sin citar.
+			if !strings.Contains(answer.Text, tt.want) {
+				t.Errorf("got %q, want un texto que diga %q", answer.Text, tt.want)
+			}
+			if !strings.Contains(answer.Text, "4") || len(answer.Citations) != 4 {
 				t.Errorf("got %q con %d citas, want los 4 pasajes", answer.Text, len(answer.Citations))
 			}
 			if answer.Trace.Provider != "none" || answer.Trace.Tokens.Prompt != 0 {
 				t.Errorf("la traza atribuye la respuesta al modelo: %+v", answer.Trace)
 			}
 		})
+	}
+}
+
+// El modelo recibe la introducción del ítem al que pertenece cada pasaje:
+// sin ella, una subsección no dice de qué lista forma parte.
+func TestAnswerGivesPassageContextToModel(t *testing.T) {
+	f := newGenFixture("Se monitorean las aguas [1].")
+	f.retriever.passages[0].Context = "8. Que, el proyecto contempla realizar los siguientes compromisos ambientales voluntarios:"
+
+	ask(t, f.service, airQuestion)
+
+	prompt := f.generator.requests[0].Prompt
+	want := "[1] RCA Tres Valles — Considerando 10.1, págs. 89-90\n(Forma parte de: 8. Que, el proyecto contempla realizar los siguientes compromisos ambientales voluntarios:)\nPlan de seguimiento"
+	if !strings.Contains(prompt, want) {
+		t.Errorf("el contexto no llegó al modelo junto a su pasaje:\n%s", prompt)
+	}
+	// Un pasaje sin contexto no lleva la línea.
+	if strings.Count(prompt, "(Forma parte de:") != 1 {
+		t.Errorf("got %d líneas de contexto, want 1", strings.Count(prompt, "(Forma parte de:"))
+	}
+}
+
+// Las reglas piden separar lo que el documento no responde de lo que sí, y
+// no repetir como cierta una premisa que los pasajes no confirman.
+func TestSystemPromptAsksForPartialAnswers(t *testing.T) {
+	f := newGenFixture("Se monitorea MP-10 [1].")
+	ask(t, f.service, airQuestion)
+
+	system := f.generator.requests[0].System
+	for _, rule := range []string{
+		"no lo repitas como cierto",
+		"di qué parte no responden y resume, con sus marcas, lo que sí dicen",
+		"incluye todos los elementos",
+		"no contienen algo no lleva marcas",
+	} {
+		if !strings.Contains(system, rule) {
+			t.Errorf("las instrucciones no incluyen %q", rule)
+		}
 	}
 }
 
@@ -270,5 +314,63 @@ func TestAnswerFullTraceKeepsUncitedPassages(t *testing.T) {
 	}
 	if len(answer.Trace.Retrieved) != 4 || answer.Trace.Retrieved[0].ChunkID != f.passages[0].ChunkID {
 		t.Errorf("got %d recuperados, want los 4", len(answer.Trace.Retrieved))
+	}
+}
+
+// Una frase que solo dice qué no contienen los pasajes no puede llevar
+// citas: si las trae, se le quitan. La evaluación mostró que el modelo las
+// pone aunque sus instrucciones se lo prohíban.
+func TestAnswerIgnoresCitationsOnAbsenceClaims(t *testing.T) {
+	tests := map[string]struct {
+		written   string
+		want      string // vacío: la respuesta no se entrega
+		citations int
+	}{
+		"solo dice que no hay información": {
+			written: "Los pasajes entregados no contienen información sobre el sueldo promedio [1][2][3][4].",
+		},
+		"no es posible responder": {
+			written: "No es posible responder con los pasajes [1][2].",
+		},
+		"ausencia y luego lo que sí dicen": {
+			written:   "Los pasajes no explican por qué se usa esa fórmula [1][2]. Los planes indican límites máximos permitidos por la autoridad correspondiente [3][4].",
+			want:      "Los pasajes no explican por qué se usa esa fórmula. Los planes indican límites máximos permitidos por la autoridad correspondiente [1][2].",
+			citations: 2,
+		},
+		"una misma frase que corrige y afirma": {
+			written:   "Los pasajes no mencionan una capacidad de 4 m3, sino que indican 34 m3 [2][3].",
+			want:      "Los pasajes no mencionan una capacidad de 4 m3, sino que indican 34 m3 [1][2].",
+			citations: 2,
+		},
+		"ausencia y afirmación separadas por punto y coma": {
+			written:   "Los pasajes no mencionan 4 m3, por lo que no es posible confirmar esa cifra; indican que la capacidad es de 34 m3 [1][2].",
+			want:      "Los pasajes no mencionan 4 m3, por lo que no es posible confirmar esa cifra; indican que la capacidad es de 34 m3 [1][2].",
+			citations: 2,
+		},
+		"varios verbos, todos negados": {
+			written: "Los pasajes no indican ni señalan la causa; no establecen un plazo [1].",
+		},
+		"una negación que el documento sí hace": {
+			written:   "El proyecto no contempla permisos de contenido únicamente ambiental [3].",
+			want:      "El proyecto no contempla permisos de contenido únicamente ambiental [1].",
+			citations: 1,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newGenFixture(tt.written)
+
+			answer := ask(t, f.service, airQuestion)
+
+			if tt.want == "" {
+				if !answer.Trace.Degraded || !strings.Contains(answer.Text, "no responden esta pregunta") {
+					t.Fatalf("got %q (degradado %v), want el texto de que los pasajes no responden", answer.Text, answer.Trace.Degraded)
+				}
+				return
+			}
+			if answer.Trace.Degraded || answer.Text != tt.want || len(answer.Citations) != tt.citations {
+				t.Errorf("got %q con %d citas (degradado %v),\nwant %q con %d", answer.Text, len(answer.Citations), answer.Trace.Degraded, tt.want, tt.citations)
+			}
+		})
 	}
 }

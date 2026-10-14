@@ -36,12 +36,15 @@ func TestRealDocument(t *testing.T) {
 
 	t.Run("reconoce la estructura completa", func(t *testing.T) {
 		// Ítems de primer nivel de cada parte, en el orden en que aparecen.
+		// Un ítem cuya introducción pasó a ser contexto se reconoce por sus
+		// subsecciones: "Considerando 8.1" es parte del ítem 8.
 		items := map[string][]int{}
 		for _, c := range chunks {
 			part, number, ok := strings.Cut(c.Section, " ")
-			if !ok || strings.Contains(number, ".") {
+			if !ok {
 				continue
 			}
+			number, _, _ = strings.Cut(number, ".")
 			n, err := strconv.Atoi(number)
 			if err != nil {
 				t.Fatalf("sección inesperada %q", c.Section)
@@ -61,6 +64,20 @@ func TestRealDocument(t *testing.T) {
 				if n != i+1 {
 					t.Errorf("%s: en la posición %d está el ítem %d; la secuencia tiene un salto", part, i, n)
 				}
+			}
+		}
+	})
+
+	t.Run("las subsecciones de los compromisos voluntarios saben a qué lista pertenecen", func(t *testing.T) {
+		const intro = "8. Que, el proyecto contempla realizar los siguientes compromisos ambientales voluntarios:"
+		for _, section := range []string{"Considerando 8.1", "Considerando 8.2", "Considerando 8.3", "Considerando 8.4"} {
+			if got := find(t, chunks, section).Context; got != intro {
+				t.Errorf("%s: got contexto %q", section, got)
+			}
+		}
+		for _, c := range chunks {
+			if c.Section == "Considerando 8" {
+				t.Error("el encabezado del considerando 8 sigue siendo un fragmento propio")
 			}
 		}
 	})
@@ -123,7 +140,16 @@ func TestRealDocument(t *testing.T) {
 			}
 		}
 		headingWords := map[string]bool{}
+		// La introducción que pasó a ser contexto se repite en cada
+		// subsección: se cuenta una vez por ítem.
+		contexts := map[string]bool{}
 		for _, c := range chunks {
+			if c.Context != "" && !contexts[c.Context] {
+				contexts[c.Context] = true
+				for _, w := range strings.Fields(c.Context) {
+					missing[w]--
+				}
+			}
 			for _, w := range strings.Fields(c.Text) {
 				missing[w]--
 			}

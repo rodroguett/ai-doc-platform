@@ -51,6 +51,7 @@ type Passage struct {
 	Source     string // nombre legible del documento
 	Section    string
 	Heading    string
+	Context    string
 	PageStart  int
 	PageEnd    int
 	Text       string
@@ -86,6 +87,11 @@ type Chunk struct {
 
 	// Heading es el título de la sección, cuando lo tiene.
 	Heading string
+
+	// Context es la introducción del ítem al que pertenece la sección,
+	// cuando la tiene: "8. Que, el proyecto contempla los siguientes
+	// compromisos ambientales voluntarios:". Dice de qué lista forma parte.
+	Context string
 
 	// PageStart y PageEnd son la primera y la última página que el
 	// fragmento abarca, desde 1.

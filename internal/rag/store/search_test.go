@@ -87,7 +87,7 @@ func TestSearchOrdersBySimilarity(t *testing.T) {
 	if first.DocumentID != docID || first.Source != "RCA Tres Valles" {
 		t.Errorf("got documento %s y fuente %q", first.DocumentID, first.Source)
 	}
-	if first.Section != "Considerando 2" || first.Heading != "Título 2" || first.PageStart != 2 || first.PageEnd != 3 {
+	if first.Section != "Considerando 2" || first.Heading != "Título 2" || first.Context != "2. Que, el proyecto contempla lo siguiente:" || first.PageStart != 2 || first.PageEnd != 3 {
 		t.Errorf("la ubicación no coincide con la del fragmento: %+v", first)
 	}
 	if first.Text != "RCA Tres Valles a 0 grados" {
