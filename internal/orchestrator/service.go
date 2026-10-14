@@ -190,6 +190,11 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 			answer.Trace.Tokens = TokenUsage{Prompt: d.promptTokens, Completion: d.outputTokens}
 		case ctx.Err() != nil:
 			return Answer{}, ctx.Err()
+		case errors.Is(err, errNoCitations):
+			// El modelo respondió, pero sin citar: casi siempre, que los
+			// pasajes no responden. No se entrega su texto, que no se puede
+			// verificar, pero sí se dice qué pasó.
+			answer.Text, answer.Trace.Degraded = notAnsweredText(len(passages)), true
 		default:
 			slog.WarnContext(ctx, "la consulta se responde en modo degradado", "error", err)
 			answer.Text, answer.Trace.Degraded = degradedText(len(passages)), true
@@ -296,6 +301,12 @@ func cacheKey(q Query) string {
 
 // degradedText es la respuesta cuando ningún modelo redactó una: dice qué se
 // entrega en su lugar.
+// notAnsweredText es la respuesta cuando el modelo consideró que los pasajes
+// no responden la pregunta.
+func notAnsweredText(passages int) string {
+	return fmt.Sprintf("Los pasajes recuperados no responden esta pregunta. Se muestran los %d más relacionados, por si contienen algo útil; verifica en ellos antes de concluir que el documento no trata el tema.", passages)
+}
+
 func degradedText(passages int) string {
 	if passages == 1 {
 		return "No hay una respuesta redactada para esta consulta. Este es el pasaje del corpus más relacionado con la pregunta, con su documento y su ubicación."
