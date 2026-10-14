@@ -33,15 +33,19 @@ sustentan, y un modelo redacta la respuesta a partir de ellos, marcando en
 cada afirmación el pasaje que la respalda. La respuesta se entrega solo si
 sus citas apuntan a pasajes que existen.
 
-Cuando el modelo no responde, o su respuesta no cita, la consulta se entrega
-en **modo degradado**: los pasajes, sin texto redactado, y la traza lo
-declara. Con la capa gratuita del proveedor eso ocurre con frecuencia.
+Si la pregunta solo se responde en parte, la respuesta dice qué parte no
+está en los pasajes y resume, con citas, lo que sí dicen. Si el modelo
+concluye que los pasajes no la responden, o no responde en absoluto, la
+consulta se entrega en **modo degradado**: los pasajes, sin texto redactado,
+con un texto que dice cuál de las dos cosas pasó, y la traza lo declara.
+Con la capa gratuita del proveedor, que el modelo no responda ocurre con
+frecuencia.
 
 | Módulo | Estado |
 |---|---|
-| `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con datos de ejemplo; `GET /v1/usage`, 501 |
-| `rag` | Ingesta completa y búsqueda por similitud: extrae el texto de un PDF, lo fragmenta por considerandos y secciones, genera sus embeddings en un trabajo reanudable, y recupera los pasajes más parecidos a una pregunta |
-| `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real. Si el modelo falla, responde en modo degradado. Caché de preguntas repetidas y tope diario |
+| `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con el orchestrator; `GET /v1/usage`, 501 |
+| `rag` | Ingesta completa y búsqueda por similitud: extrae el texto de un PDF, lo fragmenta por considerandos y secciones —la introducción breve de un considerando acompaña a cada una de sus subsecciones—, genera sus embeddings en un trabajo reanudable, y recupera los pasajes más parecidos a una pregunta |
+| `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real; las marcas puestas en una frase que solo dice que los pasajes no contienen algo no cuentan como cita. Si el modelo falla o no cita, responde en modo degradado. Caché de preguntas repetidas y tope diario |
 | `llmgw` | Embeddings y generación con Gemini detrás de interfaces que ocultan al proveedor. Respaldo entre dos modelos de generación; reintentos y ritmo regulado para los embeddings. Pendiente: conteo de costos persistente |
 
 Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y

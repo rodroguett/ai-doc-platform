@@ -17,7 +17,51 @@ GEMINI_API_KEY=... make eval
 
 Consume cuota del proveedor de embeddings, y con `-generate` también de generación, así que no corre en CI ni en los tests. La primera vez ingiere el documento en una base aparte (unos 112.000 tokens, unos cuatro minutos); las siguientes lo reutilizan. El informe queda en [`rca-tres-valles.md`](rca-tres-valles.md).
 
-## Resultado del 2026-10-14
+## Resultado vigente: tras #58
+
+Tres cambios, medidos contra la línea base de más abajo:
+
+1. **Contexto de las subsecciones.** La introducción breve de un considerando ("8. Que, el proyecto contempla los siguientes compromisos ambientales voluntarios:") deja de ser un fragmento propio y acompaña a cada subsección, en su embedding y en lo que ve el modelo. La RCA pasa de 168 a 159 fragmentos.
+2. **Respuestas parciales en el prompt.** Si los pasajes responden solo una parte, el modelo dice cuál no y resume lo que sí dicen; si la pregunta trae una premisa falsa, no la repite como cierta; si pide una lista, la incluye entera.
+3. **Las marcas en una frase de ausencia no cuentan.** "Los pasajes no contienen información [1]" no es una cita. La verificación quita esas marcas antes de exigir al menos una, y si no queda ninguna, la respuesta se entrega con un texto propio: los pasajes recuperados no responden la pregunta. Ya no se confunde con la falla del proveedor.
+
+### Búsqueda
+
+| Medida | Línea base | Tras #58 |
+|---|---|---|
+| Preguntas con todo lo esperado entre los primeros 5 pasajes | 10 de 13 | 11 de 13 |
+| Grupos de secciones esperadas entre los primeros 5 | 20 de 24 | 22 de 24 |
+| Ídem entre los primeros 10 | 23 de 24 | 23 de 24 |
+| Preguntas sin respuesta en el documento que recibirían citas | 3 de 4 | 3 de 4 |
+
+Los compromisos voluntarios pasan de 2 a 4 subsecciones entre los primeros 5: el encabezado de una línea que ocupaba el primer lugar ya no existe. La última medida no cambia porque mide el puntaje, no la respuesta: esas tres preguntas siguen superando el piso, y lo que las detiene sigue siendo la generación.
+
+### Respuestas, revisadas a mano
+
+| Pregunta | Línea base | Tras #58 |
+|---|---|---|
+| `aire-parametros`, `informes-frecuencia`, `vida-util`, `permisos-sectoriales`, `inversion` | Correctas | Correctas |
+| `sismo` | Incompleta: sin el aviso a la SMA en 24 horas | Correcta: lo incluye |
+| `compromisos-voluntarios` | **Errónea** | Correcta: los cuatro planes, sin la charla |
+| `estanque-agua-tratada` | Correcta | Correcta |
+| `estanque-tk65` | Segura pero inútil | Correcta: no confirma los 4 m³ y da los 34 m³ |
+| `fechas-expediente` | Segura pero inútil | Correcta: dice que no explica el desfase y da publicación, participación ciudadana e ICE |
+| `limites-genericos` | Segura pero inútil | Correcta: confirma la fórmula genérica en las cuatro secciones y dice que el porqué no está |
+| `plazos-contingencias` | Segura; el modelo negó que existieran las 48 horas | Correcta: 24 horas en 12.1 y 12.2, 48 horas en 12.3 y 12.6, y que la diferencia no se explica |
+| `norma-aplicable` | Segura | **Parcial**: dice que no se menciona la NCh 1333 ni el D.S. 90, pero agrega la disponibilidad de registros para fiscalizar, que no responde la pregunta |
+| Las tres del dominio sin respuesta | Seguras, con un texto que presentaba pasajes ajenos como "más relacionados" | Seguras: "los pasajes recuperados no responden esta pregunta", con los pasajes para verificar |
+| `sin-respuesta-ajena` | Correcta | Correcta |
+
+En resumen: **de siete correctas, una incompleta, una errónea y ocho sin respuesta útil, a dieciséis correctas o seguras y una parcial.** Ninguna afirmación falsa llegó a quien consulta.
+
+### Lo que no resuelve
+
+- **La variación entre corridas.** Con temperatura 0, dos corridas del mismo código coincidieron en 16 de 17 respuestas. Una corrida intermedia dejó el TK-65 en modo degradado sin registro de la causa; desde entonces el informe se genera guardando los textos descartados.
+- **El reconocimiento de frases de ausencia es una expresión regular.** Cubre las formas que el modelo usó en estas corridas ("no contienen", "no mencionan", "no es posible confirmar", "no hay información") y respeta las frases mixtas que además afirman algo con su verbo ("…pero señalan que…"). Una redacción nueva puede escaparse en cualquiera de los dos sentidos: dejar una cita en una ausencia, o quitarla de una afirmación.
+- **Una respuesta parcial puede ser tangencial**, como la de la norma aplicable: cita bien, pero lo citado no responde.
+- **El contexto absorbe introducciones con contenido propio, si son breves.** La del considerando 1, que identifica al titular, ahora es contexto de sus subsecciones y no un pasaje citable por sí mismo.
+
+## Línea base del 2026-10-14
 
 ### Búsqueda
 

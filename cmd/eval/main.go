@@ -363,7 +363,9 @@ func report(w io.Writer, set evalSet, results []result, model string, generated 
 		p("### `%s`\n\n**Mide:** %s\n\n**Pregunta:** %s\n\n", c.ID, c.Measures, c.Question)
 		mode := fmt.Sprintf("redactada por `%s`", a.Trace.Model)
 		if a.Trace.Degraded {
-			mode = "modo degradado"
+			// Cubre tanto la falla del proveedor como la respuesta descartada
+			// por no citar nada; el texto entregado dice cuál fue.
+			mode = "sin texto redactado"
 		} else if a.Trace.Model == "none" {
 			mode = "sin sustento"
 		}

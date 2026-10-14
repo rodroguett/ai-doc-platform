@@ -58,7 +58,11 @@ contra el código y contra `gh issue list`.
   `api-write-token`). Sin token configurado, esas operaciones rechazan todo.
 - La extracción (`internal/rag/pdftext`) y la fragmentación
   (`internal/rag/chunk`) se prueban con una RCA real en
-  `internal/rag/testdata`.
+  `internal/rag/testdata`. La introducción de un ítem con subsecciones, si
+  tiene hasta 400 caracteres, no es fragmento propio: va en `Chunk.Context`
+  de cada subsección, se antepone al texto del embedding y se le muestra al
+  modelo. Cambiar el fragmentador no altera lo ya ingerido: hay que borrar
+  y volver a subir el documento.
 - `internal/llmgw` genera embeddings con Gemini (`internal/llmgw/gemini`),
   por HTTP y sin SDK. Reintenta fallas transitorias, regula el ritmo a
   24.000 tokens por minuto y cuenta su propio consumo. `rag` lo consume a
@@ -68,21 +72,26 @@ contra el código y contra `gh issue list`.
   `rag.Service.Search`, descarta los que puntúan bajo 0,60, le pide la
   redacción a `llmgw.Generator` y verifica las citas (`verifyCitations`):
   toda marca `[n]` debe apuntar a un pasaje entregado, y debe haber al
-  menos una. Devuelve como citas solo los pasajes citados, con las marcas
+  menos una. Antes descarta las marcas de las frases que solo declaran una
+  ausencia ("los pasajes no contienen…"), reconocidas con una expresión
+  regular (`absenceClaim`, `affirms`). El prompt pide respuestas parciales:
+  decir qué no responden los pasajes y resumir lo que sí dicen. Devuelve como citas solo los pasajes citados, con las marcas
   renumeradas. Si el modelo falla o su texto no pasa la verificación,
-  responde en modo degradado (los pasajes, `degraded: true`); nunca es un
+  responde en modo degradado (los pasajes, `degraded: true`), con un texto
+  distinto si el modelo concluyó que los pasajes no responden; nunca es un
   error. Caché de 10 minutos y tope de 500 consultas nuevas por día, en
   memoria. ADR-0011.
 - La verificación de citas es de forma: no comprueba que el pasaje diga lo
   que la respuesta afirma.
 - La búsqueda es exacta, sin índice sobre los vectores, a propósito.
 - En producción está ingerida la RCA "Continuidad Operacional Minera Tres
-  Valles" (colección `rca`, 168 fragmentos).
+  Valles" (colección `rca`). Con el fragmentador actual son 159 fragmentos.
 - La calidad se mide con `make eval` contra `eval/rca-tres-valles.json`
   (17 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
-  mínimo no separa las preguntas del dominio sin respuesta, y las de
-  revisión crítica terminan en modo degradado. Cualquier cambio a la
-  búsqueda, al prompt o al umbral se mide contra ese resultado.
+  mínimo no separa las preguntas del dominio sin respuesta; lo que las
+  detiene es la generación. Cualquier cambio a la búsqueda, al prompt o al
+  umbral se mide contra el resultado vigente, y el informe se corrige a
+  mano: la verificación automática no juzga si la respuesta es correcta.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
