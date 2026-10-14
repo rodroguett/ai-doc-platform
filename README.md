@@ -134,6 +134,10 @@ y sus fragmentos.
 Cada origen tiene un límite de peticiones; al superarlo, la API responde 429
 con `Retry-After`.
 
+Las preguntas se envían a Gemini, de Google, en su capa gratuita, cuyas
+condiciones permiten usarlas para mejorar sus productos. `/docs` lo advierte
+antes de la primera consulta; el aviso vive en la descripción del contrato.
+
 Leer y consultar es público. Las operaciones que modifican el corpus —subir y
 eliminar documentos— exigen un token de escritura en el encabezado
 `Authorization: Bearer`, de modo que un tercero no pueda llenar ni vaciar la
