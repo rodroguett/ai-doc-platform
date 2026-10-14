@@ -78,8 +78,11 @@ contra el código y contra `gh issue list`.
 - La búsqueda es exacta, sin índice sobre los vectores, a propósito.
 - En producción está ingerida la RCA "Continuidad Operacional Minera Tres
   Valles" (colección `rca`, 168 fragmentos).
-- No hay conjunto de evaluación (#51): la calidad de las respuestas no
-  está medida.
+- La calidad se mide con `make eval` contra `eval/rca-tres-valles.json`
+  (17 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
+  mínimo no separa las preguntas del dominio sin respuesta, y las de
+  revisión crítica terminan en modo degradado. Cualquier cambio a la
+  búsqueda, al prompt o al umbral se mide contra ese resultado.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
@@ -166,6 +169,7 @@ make run-db              # lo mismo, con un Postgres local en Docker
 make test                # tests con detector de carrera; requiere Docker.
                          # Tarda uno o dos minutos por los tests de PDF
 make db-down             # elimina el Postgres local
+make eval                # mide búsqueda y respuestas; consume cuota de Gemini
 
 # Prueba contra la API real de Gemini; consume cuota, no corre por omisión:
 GEMINI_LIVE_TEST=1 GEMINI_API_KEY=... go test -run TestLive ./internal/llmgw/gemini/
