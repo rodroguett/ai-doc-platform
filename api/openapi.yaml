@@ -4,11 +4,22 @@ info:
   title: Plataforma de consulta documental
   version: 1.0.0
   description: |
-    API de consulta semántica sobre corpus documentales, con generación
-    de respuestas asistida por LLM y trazabilidad de la fuente.
+    API de consulta sobre documentos regulatorios: responde en lenguaje
+    natural y cita el documento y la sección de donde sale cada
+    afirmación. Toda respuesta trae, además, una traza de cómo se produjo.
 
-    Toda respuesta generada incluye las citas al documento origen y una
-    traza de ejecución con proveedor, costo y latencia.
+    El corpus de la demo es la Resolución de Calificación Ambiental del
+    proyecto "Continuidad Operacional Minera Tres Valles", un documento
+    público del Servicio de Evaluación Ambiental.
+
+    **Aviso sobre tus preguntas.** Cada pregunta nueva se envía a Gemini,
+    de Google, en su capa gratuita. Sus condiciones permiten a Google usar
+    lo que recibe para mejorar sus productos, y que personas lo revisen.
+    No escribas en una pregunta datos personales ni información que no
+    deba salir de tu organización.
+
+    Las respuestas las redacta un modelo y pueden ser incompletas o
+    erróneas. Verifica cada afirmación en la cita que la acompaña.
   license:
     name: MIT
 
