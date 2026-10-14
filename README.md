@@ -176,6 +176,10 @@ una clave de la API de Gemini en `GEMINI_API_KEY`; sin ella se registran con
 sus fragmentos y el trabajo queda en cola. Los trabajos corren dentro del
 proceso, sin Cloud Tasks.
 
+La calidad de la búsqueda y de las respuestas se mide con un conjunto de
+preguntas sobre la RCA de prueba: `make eval`, con una clave de Gemini. El
+último resultado y su lectura están en [`docs/eval`](docs/eval/README.md).
+
 Con `make run-db`, el token de escritura es `dev-token`:
 
 ```bash

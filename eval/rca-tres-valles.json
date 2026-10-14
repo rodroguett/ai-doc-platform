@@ -1,0 +1,125 @@
+{
+  "document": "internal/rag/testdata/rca-tres-valles.pdf",
+  "notes": "Cada pregunta mide un comportamiento distinto. Las de origen 'autor' las escribió quien construyó el sistema, conociendo el documento: están sesgadas hacia lo que el sistema hace bien. Las de origen 'asistente' las generó un asistente de IA a pedido del dueño del proyecto, y él las seleccionó; algunas traen premisas falsas, a propósito o no.",
+  "cases": [
+    {
+      "id": "aire-parametros",
+      "origin": "autor",
+      "question": "¿Qué parámetros de calidad del aire se monitorean y con qué límites?",
+      "expect": [["Considerando 10.1"]],
+      "measures": "Un dato con varias partes en una sola sección"
+    },
+    {
+      "id": "informes-frecuencia",
+      "origin": "autor",
+      "question": "¿Cada cuánto se entregan los informes de seguimiento de calidad del aire a la autoridad?",
+      "expect": [["Considerando 10.1", "Considerando 8.1"]],
+      "measures": "El mismo dato dicho de dos formas en dos secciones ('cada 6 meses', 'semestral')"
+    },
+    {
+      "id": "vida-util",
+      "origin": "autor",
+      "question": "¿Cuál es la vida útil del proyecto y cuánto dura la fase de cierre?",
+      "expect": [["Considerando 4.3.3"]],
+      "measures": "Un dato puntual en una sección larga"
+    },
+    {
+      "id": "permisos-sectoriales",
+      "origin": "autor",
+      "question": "¿Qué permisos ambientales sectoriales aplican al proyecto?",
+      "expect": [["Considerando 6.1"], ["Considerando 6.2", "Considerando 6.2.1", "Considerando 6.2.2"]],
+      "measures": "Una respuesta que combina subsecciones hermanas"
+    },
+    {
+      "id": "sismo",
+      "origin": "autor",
+      "question": "¿Qué debe hacer el titular ante un sismo?",
+      "expect": [["Considerando 12.1"]],
+      "measures": "Una sección dividida en varios fragmentos"
+    },
+    {
+      "id": "inversion",
+      "origin": "autor",
+      "question": "¿Cuál es el monto de inversión del proyecto?",
+      "expect": [["Considerando 4.1"]],
+      "measures": "Una cifra dentro de una sección de antecedentes generales"
+    },
+    {
+      "id": "compromisos-voluntarios",
+      "origin": "autor",
+      "question": "¿Qué compromisos ambientales voluntarios contempla el proyecto?",
+      "expect": [["Considerando 8.1"], ["Considerando 8.2"], ["Considerando 8.3"], ["Considerando 8.4"]],
+      "measures": "Una enumeración: hay que recuperar las cuatro subsecciones. Falló en producción al verificar #25"
+    },
+    {
+      "id": "estanque-agua-tratada",
+      "origin": "asistente",
+      "question": "¿A qué se deben las incongruencias en el volumen útil del estanque de acumulación de agua tratada mencionadas en el texto, y se encuentra debidamente garantizado que contará con una capacidad mínima de 4.000 litros/día y un tiempo de retención no superior a 48 horas?",
+      "expect": [["Considerando 6.2.1"]],
+      "measures": "El documento reconoce su propia incongruencia y fija la exigencia, pero no explica la causa: la respuesta no debe inventarla"
+    },
+    {
+      "id": "estanque-tk65",
+      "origin": "asistente",
+      "question": "¿Cuál es la capacidad real y definitiva del estanque TK-65 (destinado a xileno/diluyente), dado que en la descripción del numeral 4.3.2 se señalan 34 m3, mientras que en la Tabla 7.5.1 sobre cumplimiento del DS 594 se indica 4 m3?",
+      "expect": [["Considerando 4.3", "Considerando 7.5"]],
+      "measures": "Premisa falsa: el documento dice 34 m3 en ambas secciones y '4 m3' no aparece. La respuesta no debe confirmar la contradicción"
+    },
+    {
+      "id": "fechas-expediente",
+      "origin": "asistente",
+      "question": "¿Por qué existe un desfase temporal en la secuencia del expediente de evaluación, figurando un proceso de Participación Ciudadana (PAC) desarrollado entre octubre y noviembre de 2024, pero citando Adendas presentadas en abril y noviembre de 2025 e Informes Consolidados de Evaluación (ICE) de diciembre de 2025?",
+      "expect": [["Vistos 1"], ["Considerando 2", "Considerando 3"], ["Considerando 13", "Considerando 14"]],
+      "measures": "Fechas repartidas en tres secciones, con una premisa sesgada: la secuencia es la normal de una evaluación"
+    },
+    {
+      "id": "limites-genericos",
+      "origin": "asistente",
+      "question": "¿Por qué en los Planes de Monitoreo de Calidad de Aguas Subterráneas y Superficiales (numerales 8.2, 8.3, 10.2 y 10.3) se omite el valor normativo numérico o la norma específica de referencia, utilizando la fórmula genérica \"límites máximos permitidos por la autoridad correspondiente\"?",
+      "expect": [["Considerando 8.2"], ["Considerando 8.3"], ["Considerando 10.2"], ["Considerando 10.3"]],
+      "measures": "Un hecho cierto repartido en cuatro secciones; el motivo no está en el documento"
+    },
+    {
+      "id": "norma-aplicable",
+      "origin": "asistente",
+      "question": "¿Cómo se garantiza la certeza jurídica y la fiscalizabilidad de estos compromisos ante la Superintendencia del Medio Ambiente (SMA) si no se estipula de forma explícita la norma aplicable (ej. NCh 1333 o D.S. N° 90/2000)?",
+      "expect": [["Considerando 8.2", "Considerando 8.3", "Considerando 10.2", "Considerando 10.3"]],
+      "measures": "Juicio jurídico que el documento no hace. Trampa: el D.S. 90/2000 aparece, pero para la descarga de riles; la respuesta no debe atribuirlo a los planes de monitoreo"
+    },
+    {
+      "id": "plazos-contingencias",
+      "origin": "asistente",
+      "question": "¿Por qué el Plan de Prevención de Contingencias y Emergencias fija un plazo de notificación a la SMA de 24 horas en caso de evento sísmico (numeral 12.1), mientras que para el resto de las contingencias (climáticas, remoción en masa, inundación, incendios, filtraciones, etc.) se establece un plazo de 48 horas?",
+      "expect": [["Considerando 12.1"], ["Considerando 12.2"], ["Considerando 12.3", "Considerando 12.4", "Considerando 12.5", "Considerando 12.6", "Considerando 12.7", "Considerando 12.8", "Considerando 12.9"]],
+      "measures": "Premisa en parte falsa: las 24 horas aplican también a condiciones climáticas (12.2). Hay que juntar pasajes de varias contingencias para corregirla"
+    },
+    {
+      "id": "sin-respuesta-precio-cobre",
+      "origin": "autor",
+      "question": "¿Qué precio del cobre se consideró en la evaluación económica del proyecto?",
+      "expect": [],
+      "measures": "Del dominio, pero ausente del documento: no debe recibir citas"
+    },
+    {
+      "id": "sin-respuesta-sueldos",
+      "origin": "autor",
+      "question": "¿Cuál será el sueldo promedio de los trabajadores durante la operación?",
+      "expect": [],
+      "measures": "Del dominio, pero ausente del documento: no debe recibir citas"
+    },
+    {
+      "id": "sin-respuesta-energia-solar",
+      "origin": "autor",
+      "question": "¿Cuántos paneles solares instalará el proyecto para abastecer la planta?",
+      "expect": [],
+      "measures": "Del dominio, pero ausente del documento: no debe recibir citas"
+    },
+    {
+      "id": "sin-respuesta-ajena",
+      "origin": "autor",
+      "question": "¿Cuál es la receta del pisco sour?",
+      "expect": [],
+      "measures": "Ajena al dominio: no debe recibir citas"
+    }
+  ]
+}

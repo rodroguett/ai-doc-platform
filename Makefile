@@ -1,4 +1,4 @@
-.PHONY: run run-db test lint build tidy bootstrap generate db-up db-down
+.PHONY: run run-db test lint build tidy bootstrap generate db-up db-down eval
 
 # Go no debe cambiar de toolchain por su cuenta: una dependencia que exija
 # una versión más nueva tiene que fallar, no descargarla (ADR-0002).
@@ -46,3 +46,8 @@ db-up:
 
 db-down:
 	@docker rm -f $(PG_CONTAINER) >/dev/null 2>&1 || true
+
+# Mide la búsqueda y las respuestas contra eval/rca-tres-valles.json. Consume
+# cuota de Gemini: requiere GEMINI_API_KEY y no corre en CI.
+eval: db-up
+	go run ./cmd/eval -generate -out docs/eval/rca-tres-valles.md
