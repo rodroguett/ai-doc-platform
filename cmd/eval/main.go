@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rodroguett/ai-doc-platform/internal/llmgw/gemini"
@@ -52,20 +53,32 @@ const (
 )
 
 type evalSet struct {
-	Document string     `json:"document"`
-	Notes    string     `json:"notes"`
-	Cases    []evalCase `json:"cases"`
+	Document string `json:"document"`
+
+	// Metadata son los metadatos con que el documento está subido en
+	// producción. El nombre del documento llega al modelo junto a cada
+	// pasaje, y con otro nombre las respuestas cambian.
+	Metadata map[string]any `json:"metadata"`
+
+	Notes string     `json:"notes"`
+	Cases []evalCase `json:"cases"`
 }
 
 // evalCase es una pregunta. Expect son grupos de secciones: cada grupo se
 // cumple si se recupera alguna de sus secciones, y una respuesta completa
 // necesita todos los grupos. Sin grupos, el documento no responde la
 // pregunta.
+//
+// Reject son secciones que la respuesta redactada no debe citar: parecen
+// responder la pregunta, pero pertenecen a otra cosa. La verificación de
+// citas no puede detectarlas, porque el pasaje existe y dice lo que la
+// respuesta le atribuye.
 type evalCase struct {
 	ID       string     `json:"id"`
 	Origin   string     `json:"origin"`
 	Question string     `json:"question"`
 	Expect   [][]string `json:"expect"`
+	Reject   []string   `json:"reject,omitempty"`
 	Measures string     `json:"measures"`
 }
 
@@ -74,15 +87,16 @@ func main() {
 	dbURL := flag.String("db", "postgres://postgres:postgres@localhost:55432/aidoc_eval?sslmode=disable", "Postgres para la evaluación")
 	generate := flag.Bool("generate", false, "redactar también las respuestas, para revisarlas a mano")
 	out := flag.String("out", "", "archivo del informe; vacío escribe en la salida estándar")
+	only := flag.String("only", "", "identificadores de las preguntas a medir, separados por comas; vacío mide todas")
 	flag.Parse()
 
-	if err := run(*setPath, *dbURL, *generate, *out); err != nil {
+	if err := run(*setPath, *dbURL, *generate, *out, *only); err != nil {
 		fmt.Fprintln(os.Stderr, "eval:", err)
 		os.Exit(1)
 	}
 }
 
-func run(setPath, dbURL string, generate bool, out string) error {
+func run(setPath, dbURL string, generate bool, out, only string) error {
 	ctx := context.Background()
 
 	raw, err := os.ReadFile(filepath.Clean(setPath))
@@ -92,6 +106,15 @@ func run(setPath, dbURL string, generate bool, out string) error {
 	var set evalSet
 	if err := json.Unmarshal(raw, &set); err != nil {
 		return fmt.Errorf("leer el conjunto: %w", err)
+	}
+	if only != "" {
+		// Para repetir unas pocas preguntas, por ejemplo al medir cuánto
+		// varía una respuesta entre corridas, sin gastar cuota en el resto.
+		ids := strings.Split(only, ",")
+		set.Cases = slices.DeleteFunc(set.Cases, func(c evalCase) bool { return !slices.Contains(ids, c.ID) })
+		if len(set.Cases) == 0 {
+			return fmt.Errorf("ninguna pregunta coincide con %q", only)
+		}
 	}
 
 	key := os.Getenv("GEMINI_API_KEY")
@@ -119,13 +142,14 @@ func run(setPath, dbURL string, generate bool, out string) error {
 	})
 	local.Start(documents.RunJob)
 
-	if err := ensureCorpus(ctx, pool, st, documents, set.Document); err != nil {
+	if err := ensureCorpus(ctx, pool, st, documents, set); err != nil {
 		return err
 	}
 
+	retriever := &scoped{documents: documents, searched: map[string][]rag.Passage{}}
 	results := make([]result, len(set.Cases))
 	for i, c := range set.Cases {
-		passages, err := documents.Search(ctx, c.Question, rag.SearchOptions{Collection: collection, TopK: depth})
+		passages, err := retriever.Search(ctx, c.Question, rag.SearchOptions{TopK: depth})
 		if err != nil {
 			return fmt.Errorf("buscar %q: %w", c.ID, err)
 		}
@@ -138,7 +162,7 @@ func run(setPath, dbURL string, generate bool, out string) error {
 		if err != nil {
 			return err
 		}
-		queries := orchestrator.NewService(orchestrator.Config{Retriever: scoped{documents}, Generator: generator})
+		queries := orchestrator.NewService(orchestrator.Config{Retriever: retriever, Generator: generator})
 		for i, c := range set.Cases {
 			answer, err := queries.Answer(ctx, orchestrator.Query{Question: c.Question, TopK: cutoff})
 			if err != nil {
@@ -161,27 +185,59 @@ func run(setPath, dbURL string, generate bool, out string) error {
 	return nil
 }
 
-// scoped restringe las búsquedas del orquestador a la colección de la
-// evaluación.
-type scoped struct{ documents *rag.Service }
-
-func (s scoped) Search(ctx context.Context, query string, opts rag.SearchOptions) ([]rag.Passage, error) {
-	opts.Collection = collection
-	return s.documents.Search(ctx, query, opts)
+// scoped restringe las búsquedas a la colección de la evaluación y recuerda
+// sus resultados.
+//
+// Cada búsqueda gasta una solicitud de embeddings, y la cuota diaria de la
+// capa gratuita es la misma que usa producción. Al redactar, el orquestador
+// vuelve a buscar cada pregunta; la búsqueda es exacta, así que sus primeros
+// pasajes son los primeros de la búsqueda ya hecha, y se reutilizan.
+type scoped struct {
+	documents *rag.Service
+	searched  map[string][]rag.Passage // por pregunta, los primeros depth
 }
 
-// ensureCorpus ingiere el documento del conjunto si todavía no está listo.
-func ensureCorpus(ctx context.Context, pool *pgxpool.Pool, st *store.Store, documents *rag.Service, path string) error {
+func (s *scoped) Search(ctx context.Context, query string, opts rag.SearchOptions) ([]rag.Passage, error) {
+	if opts.TopK > depth {
+		return nil, fmt.Errorf("se pidieron %d pasajes; la evaluación recuerda %d", opts.TopK, depth)
+	}
+	passages, ok := s.searched[query]
+	if !ok {
+		var err error
+		passages, err = s.documents.Search(ctx, query, rag.SearchOptions{Collection: collection, TopK: depth})
+		if err != nil {
+			return nil, err
+		}
+		s.searched[query] = passages
+	}
+	return passages[:min(opts.TopK, len(passages))], nil
+}
+
+// ensureCorpus ingiere el documento del conjunto si todavía no está listo
+// con los metadatos del conjunto.
+func ensureCorpus(ctx context.Context, pool *pgxpool.Pool, st *store.Store, documents *rag.Service, set evalSet) error {
+	path := set.Document
 	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return err
 	}
 	sum := sha256.Sum256(data)
+	want, err := json.Marshal(set.Metadata)
+	if err != nil {
+		return err
+	}
 
+	var id uuid.UUID
 	var status string
-	err = pool.QueryRow(ctx, `SELECT status FROM documents WHERE collection = $1 AND content_sha256 = $2`,
-		collection, hex.EncodeToString(sum[:])).Scan(&status)
+	var same bool
+	err = pool.QueryRow(ctx, `SELECT id, status, metadata = $3::jsonb FROM documents WHERE collection = $1 AND content_sha256 = $2`,
+		collection, hex.EncodeToString(sum[:]), string(want)).Scan(&id, &status, &same)
 	switch {
+	case err == nil && !same:
+		fmt.Fprintln(os.Stderr, "eval: el documento está ingerido con otros metadatos; se elimina para volver a ingerirlo")
+		if err := documents.Delete(ctx, id); err != nil {
+			return err
+		}
 	case err == nil && status == string(rag.DocumentReady):
 		return nil
 	case err == nil:
@@ -189,7 +245,7 @@ func ensureCorpus(ctx context.Context, pool *pgxpool.Pool, st *store.Store, docu
 	}
 
 	fmt.Fprintln(os.Stderr, "eval: ingiriendo el documento; consume unos 112.000 tokens de embeddings y unos cuatro minutos")
-	job, err := documents.Submit(ctx, rag.Upload{Filename: path, Collection: collection, Content: data})
+	job, err := documents.Submit(ctx, rag.Upload{Filename: path, Collection: collection, Metadata: set.Metadata, Content: data})
 	if err != nil {
 		return fmt.Errorf("subir el documento: %w", err)
 	}
@@ -259,6 +315,20 @@ func score(c evalCase, passages []rag.Passage) result {
 	return r
 }
 
+// rejectedCitations devuelve las secciones de c.Reject que la respuesta cita.
+func rejectedCitations(c evalCase, a *orchestrator.Answer) []string {
+	var out []string
+	for _, cit := range a.Citations {
+		for _, section := range c.Reject {
+			// El localizador es "Considerando 11.1, págs. 92-93".
+			if strings.HasPrefix(cit.Locator, section+",") && !slices.Contains(out, section) {
+				out = append(out, section)
+			}
+		}
+	}
+	return out
+}
+
 func label(p rag.Passage) string {
 	if p.Section == "" {
 		return fmt.Sprintf("pág. %d", p.PageStart)
@@ -316,7 +386,18 @@ func report(w io.Writer, set evalSet, results []result, model string, generated 
 	p("| Ídem, y además con puntaje suficiente para citarse | %d de %d |\n", citableComplete, answerable)
 	p("| Grupos de secciones esperadas recuperados entre los primeros %d | %d de %d |\n", cutoff, hits, groups)
 	p("| Ídem entre los primeros %d | %d de %d |\n", depth, deep, groups)
-	p("| Preguntas sin respuesta en el documento que recibirían citas | %d de %d |\n\n", falseCites, unanswerable)
+	p("| Preguntas sin respuesta en el documento que recibirían citas | %d de %d |\n", falseCites, unanswerable)
+	if generated {
+		var guarded, wrong int
+		for i, c := range set.Cases {
+			if len(c.Reject) > 0 {
+				guarded++
+				wrong += b2i(len(rejectedCitations(c, results[i].answer)) > 0)
+			}
+		}
+		p("| Respuestas que citan una sección que no corresponde | %d de %d |\n", wrong, guarded)
+	}
+	p("\n")
 
 	p("## Por pregunta\n\n")
 	p("| Pregunta | Origen | Esperado | Recuperado (primeros %d) | Resultado |\n|---|---|---|---|---|\n", cutoff)
@@ -372,6 +453,9 @@ func report(w io.Writer, set evalSet, results []result, model string, generated 
 		p("**Respuesta** (%s):\n\n> %s\n\n", mode, strings.ReplaceAll(a.Text, "\n", "\n> "))
 		for j, cit := range a.Citations {
 			p("%d. %s (%.3f)\n", j+1, cit.Locator, cit.Score)
+		}
+		if wrong := rejectedCitations(c, a); len(wrong) > 0 {
+			p("\n**Cita lo que no corresponde:** %s\n", strings.Join(wrong, ", "))
 		}
 		p("\n")
 	}

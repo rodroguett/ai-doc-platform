@@ -1,10 +1,10 @@
 # Evaluación
 
-El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene 17 preguntas sobre la RCA de prueba, cada una con las secciones que la responden, o sin ninguna si el documento no la responde. Cada pregunta mide un comportamiento distinto; no hay preguntas de relleno.
+El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene 19 preguntas sobre la RCA de prueba, cada una con las secciones que la responden, o sin ninguna si el documento no la responde. Cada pregunta mide un comportamiento distinto; no hay preguntas de relleno.
 
 | Origen | Preguntas | Sesgo |
 |---|---|---|
-| `autor` | 11: siete verificadas a mano en producción y cuatro que el documento no responde | Las escribió quien construyó el sistema, conociendo el documento |
+| `autor` | 13: siete verificadas a mano en producción, dos variantes de redacción de las enumeraciones, y cuatro que el documento no responde | Las escribió quien construyó el sistema, conociendo el documento |
 | `asistente` | 6 de revisión crítica: contradicciones, juicios jurídicos, premisas falsas | Las generó un asistente de IA a pedido del dueño del proyecto, que eligió las que aportaban |
 
 ## Cómo se corre
@@ -16,6 +16,10 @@ GEMINI_API_KEY=... make eval
 ```
 
 Consume cuota del proveedor de embeddings, y con `-generate` también de generación, así que no corre en CI ni en los tests. La primera vez ingiere el documento en una base aparte (unos 112.000 tokens, unos cuatro minutos); las siguientes lo reutilizan. El informe queda en [`rca-tres-valles.md`](rca-tres-valles.md).
+
+**La cuota de embeddings es la de producción.** La capa gratuita admite 1.000 solicitudes de embeddings por día, y la clave es la misma que usa el servicio desplegado. Una corrida gasta una solicitud por pregunta (19); una ingesta, una por fragmento (159). El 2026-10-14, entre dos ingestas y una docena de corridas, la cuota se agotó y la demo quedó expuesta a fallar en la búsqueda hasta el día siguiente. Para repetir solo algunas preguntas está `-only id1,id2`.
+
+El documento se sube con los metadatos que tiene en producción (`metadata` en el conjunto), porque su nombre llega al modelo junto a cada pasaje. Con otro nombre las respuestas cambian: subido como `rca-tres-valles.pdf`, la evaluación no reproducía un error que en producción ocurrió en tres de cuatro consultas.
 
 ## Resultado vigente: tras #58
 

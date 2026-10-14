@@ -23,8 +23,8 @@ requests y los ADRs son parte de lo que el proyecto muestra.
 Lee esta sección con escepticismo: puede estar desactualizada. Verifica
 contra el código y contra `gh issue list`.
 
-- `v0.1.0`, `v0.2.0` y `v0.3.0` completados. Sigue `v0.4.0`: consulta con
-  citas reales.
+- `v0.1.0` a `v0.4.0` completados. `v0.4.0` es la consulta con citas
+  reales. No hay un milestone siguiente definido.
 - El sistema es **un solo binario**, no cuatro servicios, y así seguirá
   hasta que se cumplan las condiciones de extracción de ADR-0005.
 - El gateway implementa la interfaz generada desde el contrato OpenAPI.
@@ -87,11 +87,17 @@ contra el código y contra `gh issue list`.
 - En producción está ingerida la RCA "Continuidad Operacional Minera Tres
   Valles" (colección `rca`). Con el fragmentador actual son 159 fragmentos.
 - La calidad se mide con `make eval` contra `eval/rca-tres-valles.json`
-  (17 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
+  (19 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
   mínimo no separa las preguntas del dominio sin respuesta; lo que las
   detiene es la generación. Cualquier cambio a la búsqueda, al prompt o al
   umbral se mide contra el resultado vigente, y el informe se corrige a
   mano: la verificación automática no juzga si la respuesta es correcta.
+  Un caso puede declarar `reject`: secciones que la respuesta no debe citar.
+- **La cuota de embeddings la comparten la evaluación y producción**: 1.000
+  solicitudes por día en la capa gratuita. Una ingesta gasta una por
+  fragmento; una corrida de `make eval`, una por pregunta. Antes de una serie
+  de corridas o de re-ingerir, contar cuántas solicitudes quedan; agotarla
+  deja la demo sin búsqueda hasta el día siguiente.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.
