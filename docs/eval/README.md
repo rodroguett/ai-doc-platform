@@ -33,7 +33,7 @@ El documento se sube con los metadatos que tiene en producción (`metadata` en e
 
 El conjunto exigía la 6.2 o cualquiera de sus subsecciones, y por eso daba la variante por cumplida. Ahora exige la 6.2.1 y la 6.2.2 por separado, una por permiso; con esa exigencia, antes del cambio la variante cumplía 2 de 3 grupos.
 
-Ninguna otra pregunta cambió su búsqueda. La única otra con sigla, `plazos-contingencias` ("SMA"), sigue recuperando sus tres secciones, y todas las respuestas quedan como tras #61: correctas o seguras, salvo `norma-aplicable`, que sigue parcial.
+Otras dos preguntas tienen siglas: `plazos-contingencias` ("SMA") y `fechas-expediente` ("ICE", que ya trae "Informes Consolidados de Evaluación" en plural y se expande igual, de forma redundante). Las dos recuperan las mismas cinco secciones que antes, en otro orden y con puntajes que varían en menos de 0,03. Todas las respuestas quedan como tras #61: correctas o seguras, salvo `norma-aplicable`, que sigue parcial.
 
 Lo que no resuelve: el glosario es fijo y solo cubre siglas del SEIA. Una sigla fuera de él, o una pregunta que nombre una subsección y no a sus hermanas, sigue dependiendo de la búsqueda. Traer las subsecciones hermanas se descartó por ahora: agregaría hasta unos 900 tokens por pasaje en cada consulta, y ningún caso medido lo necesita.
 
