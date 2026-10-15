@@ -381,7 +381,7 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 	}
 	opts.Collection = strings.TrimSpace(opts.Collection)
 
-	vector, err := s.embedder.EmbedQuery(ctx, query)
+	vector, err := s.embedder.EmbedQuery(ctx, expandAcronyms(query))
 	switch {
 	case err == nil:
 	case ctx.Err() != nil:
