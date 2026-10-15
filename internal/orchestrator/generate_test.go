@@ -210,6 +210,7 @@ func TestSystemPromptAsksForPartialAnswers(t *testing.T) {
 		"no lo repitas como cierto",
 		"di qué parte no responden y resume, con sus marcas, lo que sí dicen",
 		"incluye todos los elementos",
+		"forma parte de\" otra lista no es un elemento",
 		"no contienen algo no lleva marcas",
 	} {
 		if !strings.Contains(system, rule) {

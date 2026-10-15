@@ -1,6 +1,11 @@
 {
   "document": "internal/rag/testdata/rca-tres-valles.pdf",
-  "notes": "Cada pregunta mide un comportamiento distinto. Las de origen 'autor' las escribió quien construyó el sistema, conociendo el documento: están sesgadas hacia lo que el sistema hace bien. Las de origen 'asistente' las generó un asistente de IA a pedido del dueño del proyecto, y él las seleccionó; algunas traen premisas falsas, a propósito o no.",
+  "metadata": {
+    "region": "Coquimbo",
+    "source": "RCA Continuidad Operacional Minera Tres Valles",
+    "titular": "Minera Tres Valles SpA"
+  },
+  "notes": "Cada pregunta mide un comportamiento distinto. Las de origen 'autor' las escribió quien construyó el sistema, conociendo el documento: están sesgadas hacia lo que el sistema hace bien. Las de origen 'asistente' las generó un asistente de IA a pedido del dueño del proyecto, y quedaron las que aportaban; algunas traen premisas falsas, a propósito o no.",
   "cases": [
     {
       "id": "aire-parametros",
@@ -31,6 +36,13 @@
       "measures": "Una respuesta que combina subsecciones hermanas"
     },
     {
+      "id": "permisos-sectoriales-cuales",
+      "origin": "autor",
+      "question": "¿Cuáles son los PAS del proyecto?",
+      "expect": [["Considerando 6.1"], ["Considerando 6.2", "Considerando 6.2.1", "Considerando 6.2.2"]],
+      "measures": "La misma enumeración, con la sigla con que la escribiría alguien del sector"
+    },
+    {
       "id": "sismo",
       "origin": "autor",
       "question": "¿Qué debe hacer el titular ante un sismo?",
@@ -49,7 +61,16 @@
       "origin": "autor",
       "question": "¿Qué compromisos ambientales voluntarios contempla el proyecto?",
       "expect": [["Considerando 8.1"], ["Considerando 8.2"], ["Considerando 8.3"], ["Considerando 8.4"]],
+      "reject": ["Considerando 11.1"],
       "measures": "Una enumeración: hay que recuperar las cuatro subsecciones. Falló en producción al verificar #25"
+    },
+    {
+      "id": "compromisos-voluntarios-cuales",
+      "origin": "autor",
+      "question": "¿Cuáles son los compromisos ambientales voluntarios del proyecto?",
+      "expect": [["Considerando 8.1"], ["Considerando 8.2"], ["Considerando 8.3"], ["Considerando 8.4"]],
+      "reject": ["Considerando 11.1"],
+      "measures": "La misma enumeración, redactada como se preguntó en producción al verificar #58: la respuesta agregó la charla de difusión de la 11.1, que es monitoreo participativo y no un compromiso voluntario"
     },
     {
       "id": "estanque-agua-tratada",
