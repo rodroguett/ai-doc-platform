@@ -93,11 +93,13 @@ contra el código y contra `gh issue list`.
   umbral se mide contra el resultado vigente, y el informe se corrige a
   mano: la verificación automática no juzga si la respuesta es correcta.
   Un caso puede declarar `reject`: secciones que la respuesta no debe citar.
-- **La cuota de embeddings la comparten la evaluación y producción**: 1.000
-  solicitudes por día en la capa gratuita. Una ingesta gasta una por
-  fragmento; una corrida de `make eval`, una por pregunta. Antes de una serie
-  de corridas o de re-ingerir, contar cuántas solicitudes quedan; agotarla
-  deja la demo sin búsqueda hasta el día siguiente.
+- **La evaluación tiene su propia clave de Gemini**, en otro proyecto sin
+  facturación, en `~/.config/ai-doc-platform/eval-gemini-key`; `make eval`
+  no corre sin ella. Nunca medir con la clave de producción: la cuota es de
+  1.000 solicitudes de embeddings por día y por proyecto, una ingesta gasta
+  una por fragmento, y agotarla deja la demo sin búsqueda. Re-ingerir en
+  producción también gasta de esa cuota. El aviso de reintento del
+  proveedor no es confiable para saber cuándo se repone.
 - Desplegado en Cloud Run, público, con despliegue continuo desde `main`,
   con una sola instancia como máximo, 512 MiB de memoria y 120 s de plazo
   por petición. Con 256 MiB el proceso muere al extraer el primer PDF.

@@ -12,16 +12,40 @@ El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene
 ```bash
 make db-up
 docker exec aidoc-pg createdb -U postgres aidoc_eval   # una vez
-GEMINI_API_KEY=... make eval
+make eval   # lee la clave de ~/.config/ai-doc-platform/eval-gemini-key
 ```
 
 Consume cuota del proveedor de embeddings, y con `-generate` también de generación, así que no corre en CI ni en los tests. La primera vez ingiere el documento en una base aparte (unos 112.000 tokens, unos cuatro minutos); las siguientes lo reutilizan. El informe queda en [`rca-tres-valles.md`](rca-tres-valles.md).
 
-**La cuota de embeddings es la de producción.** La capa gratuita admite 1.000 solicitudes de embeddings por día, y la clave es la misma que usa el servicio desplegado. Una corrida gasta una solicitud por pregunta (19); una ingesta, una por fragmento (159). El 2026-10-14, entre dos ingestas y una docena de corridas, la cuota se agotó y la demo quedó expuesta a fallar en la búsqueda hasta el día siguiente. Para repetir solo algunas preguntas está `-only id1,id2`.
+**La evaluación usa una clave propia**, creada en otro proyecto de Google sin facturación. La capa gratuita admite 1.000 solicitudes de embeddings por día y por proyecto; una corrida gasta una por pregunta (19), y una ingesta una por fragmento (159). El 2026-10-14 la evaluación todavía usaba la clave de producción: entre dos ingestas y una docena de corridas se gastaron unas 1.500 solicitudes, y durante más de un día la demo dependió de los reintentos para que algunas búsquedas pasaran. `make eval` no corre sin la clave propia. Para repetir solo algunas preguntas está `-only id1,id2`.
 
 El documento se sube con los metadatos que tiene en producción (`metadata` en el conjunto), porque su nombre llega al modelo junto a cada pasaje. Con otro nombre las respuestas cambian: subido como `rca-tres-valles.pdf`, la evaluación no reproducía un error que en producción ocurrió en tres de cuatro consultas.
 
-## Resultado vigente: tras #58
+## Resultado vigente: tras #61
+
+Dos cambios en la medición y uno en el prompt:
+
+1. **El documento se sube con los metadatos de producción.** Antes, el modelo veía cada pasaje rotulado con la ruta del PDF. Con ese solo cambio, agregar la charla de difusión (11.1, monitoreo participativo) a los compromisos voluntarios pasó de no ocurrir en diez respuestas a ocurrir en dos de diez, como en producción.
+2. **Variantes de redacción y secciones prohibidas.** Las dos enumeraciones del conjunto tienen una segunda redacción, y las de los compromisos declaran la 11.1 en `reject`.
+3. **El prompt pide excluir de una enumeración lo que "forma parte de" otra lista**, usando el contexto que cada pasaje trae desde #58. En diez respuestas repetidas, ninguna citó la 11.1.
+
+| Medida | Tras #58 | Tras #61 |
+|---|---|---|
+| Respuestas de los compromisos que citan la 11.1 (diez repeticiones) | 2 de 10 | 0 de 10 |
+| Respuestas que citan una sección que no corresponde (corrida completa) | — | 0 de 2 |
+
+Las respuestas de las 17 preguntas anteriores no empeoraron. Las dos variantes:
+
+| Pregunta | Juicio |
+|---|---|
+| `compromisos-voluntarios-cuales` | Correcta: los cuatro planes, sin la charla |
+| `permisos-sectoriales-cuales` | **Incompleta**: con la sigla "PAS", la búsqueda deja fuera la 6.2.2 y la respuesta omite el permiso del artículo 160 (#62). El conjunto no lo detecta: el grupo de la 6.2 se cumple con cualquiera de sus subsecciones |
+
+En esta corrida, `sin-respuesta-precio-cobre` cayó en modo degradado por un 429 del modelo de generación, no por su contenido. Al no repetir la búsqueda de cada pregunta, las llamadas de generación salen más seguidas y chocan con el límite por minuto de la capa gratuita.
+
+Diez repeticiones son una muestra chica: el cambio reduce la frecuencia del error, no demuestra que desaparezca.
+
+## Tras #58
 
 Tres cambios, medidos contra la línea base de más abajo:
 

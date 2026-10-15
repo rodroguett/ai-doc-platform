@@ -49,5 +49,11 @@ db-down:
 
 # Mide la búsqueda y las respuestas contra eval/rca-tres-valles.json. Consume
 # cuota de Gemini: requiere GEMINI_API_KEY y no corre en CI.
+# La evaluación usa una clave de Gemini propia, de otro proyecto sin
+# facturación: la cuota diaria de la capa gratuita es por proyecto, y con la
+# clave de producción una serie de corridas deja la demo sin búsqueda.
+EVAL_KEY_FILE ?= $(HOME)/.config/ai-doc-platform/eval-gemini-key
+
 eval: db-up
-	go run ./cmd/eval -generate -out docs/eval/rca-tres-valles.md
+	@test -r $(EVAL_KEY_FILE) || { echo "falta la clave de Gemini para la evaluación en $(EVAL_KEY_FILE); ver docs/eval/README.md"; exit 1; }
+	GEMINI_API_KEY="$$(cat $(EVAL_KEY_FILE))" go run ./cmd/eval -generate -out docs/eval/rca-tres-valles.md
