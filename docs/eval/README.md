@@ -21,7 +21,23 @@ Consume cuota del proveedor de embeddings, y con `-generate` también de generac
 
 El documento se sube con los metadatos que tiene en producción (`metadata` en el conjunto), porque su nombre llega al modelo junto a cada pasaje. Con otro nombre las respuestas cambian: subido como `rca-tres-valles.pdf`, la evaluación no reproducía un error que en producción ocurrió en tres de cuatro consultas.
 
-## Resultado vigente: tras #61
+## Resultado vigente: tras #62
+
+**Las siglas de la pregunta se buscan también por su nombre completo.** Antes de convertir la pregunta en vector, "PAS" pasa a "PAS (Permisos Ambientales Sectoriales)", con un glosario de nueve siglas del SEIA tomadas de las definiciones de la propia RCA. La pregunta que ve el modelo no cambia, y el prompt no crece.
+
+| `permisos-sectoriales-cuales` ("¿Cuáles son los PAS del proyecto?") | Antes | Después |
+|---|---|---|
+| Primeros 5 pasajes | 9, 6.1, Resuelvo 5, 6.2.1, 6.2 | 6.2, 6.1, 6.2.1, 6.2.1, 6.2.2 |
+| Puntaje del primero | 0,684 | 0,790 |
+| Respuesta | Incompleta: solo el permiso del artículo 138 | Correcta: artículos 138 y 160 |
+
+El conjunto exigía la 6.2 o cualquiera de sus subsecciones, y por eso daba la variante por cumplida. Ahora exige la 6.2.1 y la 6.2.2 por separado, una por permiso; con esa exigencia, antes del cambio la variante cumplía 2 de 3 grupos.
+
+Ninguna otra pregunta cambió su búsqueda. La única otra con sigla, `plazos-contingencias` ("SMA"), sigue recuperando sus tres secciones, y todas las respuestas quedan como tras #61: correctas o seguras, salvo `norma-aplicable`, que sigue parcial.
+
+Lo que no resuelve: el glosario es fijo y solo cubre siglas del SEIA. Una sigla fuera de él, o una pregunta que nombre una subsección y no a sus hermanas, sigue dependiendo de la búsqueda. Traer las subsecciones hermanas se descartó por ahora: agregaría hasta unos 900 tokens por pasaje en cada consulta, y ningún caso medido lo necesita.
+
+## Tras #61
 
 Dos cambios en la medición y uno en el prompt:
 
