@@ -84,6 +84,9 @@ contra el código y contra `gh issue list`.
 - La verificación de citas es de forma: no comprueba que el pasaje diga lo
   que la respuesta afirma.
 - La búsqueda es exacta, sin índice sobre los vectores, a propósito.
+- Antes de convertir una pregunta en vector, `rag` agrega a cada sigla del
+  SEIA su nombre completo (`internal/rag/acronyms.go`). Solo afecta la
+  búsqueda: la pregunta que ve el modelo no cambia.
 - En producción está ingerida la RCA "Continuidad Operacional Minera Tres
   Valles" (colección `rca`). Con el fragmentador actual son 159 fragmentos.
 - La calidad se mide con `make eval` contra `eval/rca-tres-valles.json`

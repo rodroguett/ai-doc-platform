@@ -96,3 +96,17 @@ func TestSearchTranslatesProviderErrors(t *testing.T) {
 		})
 	}
 }
+
+// Las siglas se buscan también por su nombre completo, que es como lo
+// escriben muchas secciones.
+func TestSearchExpandsAcronyms(t *testing.T) {
+	f := newRunFixture(t, 1)
+
+	if _, err := f.service.Search(context.Background(), "¿Cuáles son los PAS?", rag.SearchOptions{TopK: 5}); err != nil {
+		t.Fatalf("buscar: %v", err)
+	}
+
+	if q := f.embedder.queries[len(f.embedder.queries)-1]; q != "¿Cuáles son los PAS (Permisos Ambientales Sectoriales)?" {
+		t.Errorf("got consulta %q", q)
+	}
+}

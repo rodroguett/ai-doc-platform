@@ -32,15 +32,15 @@
       "id": "permisos-sectoriales",
       "origin": "autor",
       "question": "¿Qué permisos ambientales sectoriales aplican al proyecto?",
-      "expect": [["Considerando 6.1"], ["Considerando 6.2", "Considerando 6.2.1", "Considerando 6.2.2"]],
-      "measures": "Una respuesta que combina subsecciones hermanas"
+      "expect": [["Considerando 6.1"], ["Considerando 6.2.1"], ["Considerando 6.2.2"]],
+      "measures": "Una respuesta que combina subsecciones hermanas: cada permiso está en la suya"
     },
     {
       "id": "permisos-sectoriales-cuales",
       "origin": "autor",
       "question": "¿Cuáles son los PAS del proyecto?",
-      "expect": [["Considerando 6.1"], ["Considerando 6.2", "Considerando 6.2.1", "Considerando 6.2.2"]],
-      "measures": "La misma enumeración, con la sigla con que la escribiría alguien del sector"
+      "expect": [["Considerando 6.1"], ["Considerando 6.2.1"], ["Considerando 6.2.2"]],
+      "measures": "La misma enumeración, con la sigla con que la escribiría alguien del sector. Sin expandir la sigla, la búsqueda dejaba fuera la 6.2.2 y la respuesta omitía el permiso del artículo 160 (#62)"
     },
     {
       "id": "sismo",
