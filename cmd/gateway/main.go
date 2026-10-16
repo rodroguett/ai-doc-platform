@@ -120,9 +120,10 @@ func run() error {
 			}
 			// Cada consulta deja su registro de uso y costo estimado
 			// (ADR-0013).
-			services.Queries = orchestrator.NewService(orchestrator.Config{
+			queries := orchestrator.NewService(orchestrator.Config{
 				Retriever: documents, Generator: generator, Usage: usagestore.New(pool),
 			})
+			services.Queries, services.Usage = queries, queries
 		}
 		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}

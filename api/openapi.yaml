@@ -258,6 +258,12 @@ paths:
     get:
       tags: [usage]
       summary: Consumo agregado del periodo
+      description: >-
+        Suma las consultas atendidas entre `from` y `to`, ambos incluidos, en
+        días UTC. Sin `to`, hasta hoy; sin `from`, los 30 días que terminan en
+        `to`. El periodo no puede superar 366 días. El costo es estimado a
+        tarifa de lista (ADR-0013): el servicio corre en capas gratuitas y no
+        paga nada.
       operationId: getUsage
       parameters:
         - name: from
@@ -273,7 +279,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Usage'
+        '400': { $ref: '#/components/responses/BadRequest' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
 components:
 
@@ -485,21 +493,43 @@ components:
 
     Usage:
       type: object
+      required: [period_start, period_end, queries, cache_hit_rate, tokens_total, estimated_cost_usd, queries_without_cost_estimate, by_provider]
       properties:
         period_start: { type: string, format: date }
-        period_end: { type: string, format: date }
-        queries: { type: integer }
-        cache_hit_rate: { type: number, format: float }
-        tokens_total: { type: integer }
-        cost_usd: { type: number, format: float }
+        period_end:
+          type: string
+          format: date
+          description: Último día incluido
+        queries:
+          type: integer
+          description: Consultas atendidas, incluidas las respondidas desde la caché
+        cache_hit_rate:
+          type: number
+          format: double
+          description: Fracción de las consultas respondidas desde la caché; 0 si no hubo consultas
+        tokens_total:
+          type: integer
+          format: int64
+          description: Tokens de entrada y salida de la generación
+        estimated_cost_usd:
+          type: number
+          format: double
+          description: >-
+            Lo que habrían costado las consultas a tarifa de lista; no es lo
+            que se paga. No incluye las consultas sin costo conocido.
+        queries_without_cost_estimate:
+          type: integer
+          description: Consultas de un modelo sin tarifa conocida, que no suman al costo
         by_provider:
           type: array
+          description: Proveedor que respondió cada consulta, o `none` si ninguno
           items:
             type: object
+            required: [provider, queries, estimated_cost_usd]
             properties:
               provider: { type: string }
               queries: { type: integer }
-              cost_usd: { type: number, format: float }
+              estimated_cost_usd: { type: number, format: double }
 
     Problem:
       type: object

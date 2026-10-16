@@ -265,17 +265,31 @@ type TraceCache string
 
 // Usage defines model for Usage.
 type Usage struct {
-	ByProvider *[]struct {
-		CostUsd  *float32 `json:"cost_usd,omitempty"`
-		Provider *string  `json:"provider,omitempty"`
-		Queries  *int     `json:"queries,omitempty"`
-	} `json:"by_provider,omitempty"`
-	CacheHitRate *float32            `json:"cache_hit_rate,omitempty"`
-	CostUsd      *float32            `json:"cost_usd,omitempty"`
-	PeriodEnd    *openapi_types.Date `json:"period_end,omitempty"`
-	PeriodStart  *openapi_types.Date `json:"period_start,omitempty"`
-	Queries      *int                `json:"queries,omitempty"`
-	TokensTotal  *int                `json:"tokens_total,omitempty"`
+	// ByProvider Proveedor que respondió cada consulta, o `none` si ninguno
+	ByProvider []struct {
+		EstimatedCostUsd float64 `json:"estimated_cost_usd"`
+		Provider         string  `json:"provider"`
+		Queries          int     `json:"queries"`
+	} `json:"by_provider"`
+
+	// CacheHitRate Fracción de las consultas respondidas desde la caché; 0 si no hubo consultas
+	CacheHitRate float64 `json:"cache_hit_rate"`
+
+	// EstimatedCostUsd Lo que habrían costado las consultas a tarifa de lista; no es lo que se paga. No incluye las consultas sin costo conocido.
+	EstimatedCostUsd float64 `json:"estimated_cost_usd"`
+
+	// PeriodEnd Último día incluido
+	PeriodEnd   openapi_types.Date `json:"period_end"`
+	PeriodStart openapi_types.Date `json:"period_start"`
+
+	// Queries Consultas atendidas, incluidas las respondidas desde la caché
+	Queries int `json:"queries"`
+
+	// QueriesWithoutCostEstimate Consultas de un modelo sin tarifa conocida, que no suman al costo
+	QueriesWithoutCostEstimate int `json:"queries_without_cost_estimate"`
+
+	// TokensTotal Tokens de entrada y salida de la generación
+	TokensTotal int64 `json:"tokens_total"`
 }
 
 // Cursor defines model for Cursor.
@@ -1391,6 +1405,22 @@ func (response GetUsage200JSONResponse) VisitGetUsageResponse(w http.ResponseWri
 	return err
 }
 
+type GetUsage400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetUsage400ApplicationProblemPlusJSONResponse) VisitGetUsageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetUsage429ApplicationProblemPlusJSONResponse struct {
 	TooManyRequestsApplicationProblemPlusJSONResponse
 }
@@ -1406,6 +1436,22 @@ func (response GetUsage429ApplicationProblemPlusJSONResponse) VisitGetUsageRespo
 		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
 	}
 	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUsage503ApplicationProblemPlusJSONResponse struct {
+	ServiceUnavailableApplicationProblemPlusJSONResponse
+}
+
+func (response GetUsage503ApplicationProblemPlusJSONResponse) VisitGetUsageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
 	_, err := buf.WriteTo(w)
 	return err
 }

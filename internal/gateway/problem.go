@@ -58,13 +58,6 @@ var errUploadInProgress = newServiceError(
 	"El servicio procesa un documento a la vez. Reintente en unos segundos.",
 )
 
-var errNotImplemented = newServiceError(
-	"not-implemented",
-	"Funcionalidad no disponible",
-	http.StatusNotImplemented,
-	"Este endpoint todavía no tiene implementación.",
-)
-
 // invalidRequest construye un error 400 con un detalle apto para el cliente.
 func invalidRequest(detail string) *serviceError {
 	return newServiceError("invalid-request", "Petición inválida", http.StatusBadRequest, detail)
