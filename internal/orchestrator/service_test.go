@@ -119,7 +119,7 @@ func TestAnswerDeclaresDegradedMode(t *testing.T) {
 	if !tr.Degraded || tr.Provider != "none" || tr.Model != "none" {
 		t.Errorf("got degradado %v, proveedor %q, modelo %q", tr.Degraded, tr.Provider, tr.Model)
 	}
-	if tr.Tokens.Prompt != 0 || tr.Tokens.Completion != 0 || tr.CostUSD != 0 || tr.Latency.Generation != 0 {
+	if tr.Tokens.Prompt != 0 || tr.Tokens.Completion != 0 || tr.EstimatedCostUSD == nil || *tr.EstimatedCostUSD != 0 || tr.Latency.Generation != 0 {
 		t.Errorf("la traza declara consumo de generación sin haber generado: %+v", tr)
 	}
 	if len(tr.ID) != 32 || strings.Contains(tr.ID, "-") {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,8 @@ type reply struct {
 	text   string
 	finish string
 	empty  bool // sin candidatos
+
+	thoughts int // tokens de razonamiento que informa el proveedor
 }
 
 // fakeGenerateAPI responde a generateContent según el modelo pedido, y anota
@@ -74,7 +77,7 @@ func (f *fakeGenerateAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}},
 			"finishReason": finish,
 		}},
-		"usageMetadata": map[string]any{"promptTokenCount": 3000, "candidatesTokenCount": 150},
+		"usageMetadata": map[string]any{"promptTokenCount": 3000, "candidatesTokenCount": 150, "thoughtsTokenCount": rep.thoughts},
 	})
 }
 
@@ -234,5 +237,66 @@ func TestGenerateStopsWhenContextIsCancelled(t *testing.T) {
 	}
 	if len(api.models) > 1 {
 		t.Errorf("siguió con el respaldo tras la cancelación: %v", api.models)
+	}
+}
+
+// El costo se estima con la tarifa de lista del modelo que respondió.
+func TestGenerateEstimatesCost(t *testing.T) {
+	g, _, _ := newGenerator(t, map[string]reply{ModelFlashLite: {text: "Seis pozos [1]."}}, ModelFlashLite)
+
+	got, err := g.Generate(context.Background(), request)
+	if err != nil {
+		t.Fatalf("generar: %v", err)
+	}
+
+	// 3.000 tokens de entrada a 0,30 USD y 150 de salida a 2,50 USD por millón.
+	const want = 0.0009 + 0.000375
+	if got.EstimatedCostUSD == nil || math.Abs(*got.EstimatedCostUSD-want) > 1e-12 {
+		t.Errorf("got costo %v, want %v", got.EstimatedCostUSD, want)
+	}
+}
+
+// Los tokens de razonamiento no aparecen en la respuesta, pero se cobran
+// como salida.
+func TestGenerateCountsThinkingAsOutput(t *testing.T) {
+	g, _, client := newGenerator(t, map[string]reply{ModelFlashLite: {text: "Seis pozos [1].", thoughts: 400}}, ModelFlashLite)
+
+	got, err := g.Generate(context.Background(), request)
+	if err != nil {
+		t.Fatalf("generar: %v", err)
+	}
+
+	if got.OutputTokens != 550 {
+		t.Errorf("got %d tokens de salida, want 550", got.OutputTokens)
+	}
+	const want = 0.0009 + 550*2.50/1e6
+	if got.EstimatedCostUSD == nil || math.Abs(*got.EstimatedCostUSD-want) > 1e-12 {
+		t.Errorf("got costo %v, want %v", got.EstimatedCostUSD, want)
+	}
+	if usage := client.Usage(); usage.Tokens != 3550 {
+		t.Errorf("got %d tokens contados, want 3550", usage.Tokens)
+	}
+}
+
+// Un modelo sin tarifa conocida no cuesta cero: su costo queda sin estimar.
+func TestGenerateLeavesUnknownCostUnset(t *testing.T) {
+	g, _, _ := newGenerator(t, map[string]reply{"modelo-nuevo": {text: "Seis pozos [1]."}}, "modelo-nuevo")
+
+	got, err := g.Generate(context.Background(), request)
+	if err != nil {
+		t.Fatalf("generar: %v", err)
+	}
+	if got.EstimatedCostUSD != nil {
+		t.Errorf("got costo %v, want sin estimar", *got.EstimatedCostUSD)
+	}
+}
+
+// Cada modelo que el proyecto usa tiene tarifa. Cambiar de modelo sin
+// agregarla deja las consultas sin costo estimado.
+func TestConfiguredModelsHavePrices(t *testing.T) {
+	for _, m := range []string{ModelFlashLite, ModelFlashLiteFallback, model} {
+		if _, ok := prices[m]; !ok {
+			t.Errorf("el modelo %s no tiene tarifa", m)
+		}
 	}
 }

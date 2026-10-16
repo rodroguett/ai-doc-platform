@@ -77,6 +77,7 @@ type draft struct {
 	model        string
 	promptTokens int
 	outputTokens int
+	cost         *float64
 }
 
 var (
@@ -102,22 +103,25 @@ func (s *Service) generate(ctx context.Context, question string, passages []rag.
 		return draft{}, err
 	}
 
+	d := draft{
+		provider:     generation.Provider,
+		model:        generation.Model,
+		promptTokens: generation.PromptTokens,
+		outputTokens: generation.OutputTokens,
+		cost:         generation.EstimatedCostUSD,
+	}
 	text, cited, err := verifyCitations(generation.Text, len(passages))
 	if err != nil {
 		// Se registra lo que el modelo escribió: sin eso no hay cómo saber
 		// por qué una consulta terminó en modo degradado.
 		slog.WarnContext(ctx, "se descartó la respuesta redactada",
 			"modelo", generation.Model, "motivo", err, "texto", truncate(generation.Text, maxLoggedAnswer))
-		return draft{}, err
+		// El texto se descarta, pero los tokens se gastaron: el borrador
+		// vuelve sin texto, con su consumo.
+		return d, err
 	}
-	return draft{
-		text:         text,
-		cited:        cited,
-		provider:     generation.Provider,
-		model:        generation.Model,
-		promptTokens: generation.PromptTokens,
-		outputTokens: generation.OutputTokens,
-	}, nil
+	d.text, d.cited = text, cited
+	return d, nil
 }
 
 // buildPrompt arma lo que el modelo lee: los pasajes numerados, cada uno con

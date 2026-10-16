@@ -224,12 +224,16 @@ type QueryResponse struct {
 
 // Trace defines model for Trace.
 type Trace struct {
-	Cache   TraceCache `json:"cache"`
-	CostUsd *float32   `json:"cost_usd,omitempty"`
+	Cache TraceCache `json:"cache"`
 
 	// Degraded Verdadero si se respondió por fallback
-	Degraded  *bool `json:"degraded,omitempty"`
-	LatencyMs struct {
+	Degraded *bool `json:"degraded,omitempty"`
+
+	// EstimatedCostUsd Lo que habría costado la consulta con la tarifa de lista del proveedor en su capa de pago (ADR-0013). No es lo que se paga: el servicio corre en capas gratuitas. Falta si el modelo que respondió no tiene tarifa conocida; un costo desconocido no se informa como cero.
+	//
+	// Examples: 0.00124
+	EstimatedCostUsd *float64 `json:"estimated_cost_usd,omitempty"`
+	LatencyMs        struct {
 		Generation *int `json:"generation,omitempty"`
 		Retrieval  *int `json:"retrieval,omitempty"`
 		Total      *int `json:"total,omitempty"`

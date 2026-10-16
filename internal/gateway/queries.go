@@ -74,7 +74,8 @@ func toTrace(t orchestrator.Trace) api.Trace {
 		Model:    t.Model,
 		Cache:    api.TraceCache(t.Cache),
 		Degraded: &t.Degraded,
-		CostUsd:  ptr(float32(t.CostUSD)),
+
+		EstimatedCostUsd: t.EstimatedCostUSD,
 	}
 	out.Tokens = &struct {
 		Completion *int `json:"completion,omitempty"`

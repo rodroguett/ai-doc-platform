@@ -45,8 +45,8 @@ frecuencia.
 |---|---|
 | `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con el orchestrator; `GET /v1/usage`, 501 |
 | `rag` | Ingesta completa y búsqueda por similitud: extrae el texto de un PDF, lo fragmenta por considerandos y secciones —la introducción breve de un considerando acompaña a cada una de sus subsecciones—, genera sus embeddings en un trabajo reanudable, y recupera los pasajes más parecidos a una pregunta, buscando las siglas del SEIA también por su nombre completo |
-| `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real; las marcas puestas en una frase que solo dice que los pasajes no contienen algo no cuentan como cita. Si el modelo falla o no cita, responde en modo degradado. Caché de preguntas repetidas y tope diario |
-| `llmgw` | Embeddings y generación con Gemini detrás de interfaces que ocultan al proveedor. Respaldo entre dos modelos de generación; reintentos y ritmo regulado para los embeddings. Pendiente: conteo de costos persistente |
+| `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real; las marcas puestas en una frase que solo dice que los pasajes no contienen algo no cuentan como cita. Si el modelo falla o no cita, responde en modo degradado. Caché de preguntas repetidas y tope diario. Cada consulta deja en Postgres su consumo de tokens y su costo estimado a tarifa de lista, sin la pregunta (ADR-0013) |
+| `llmgw` | Embeddings y generación con Gemini detrás de interfaces que ocultan al proveedor. Respaldo entre dos modelos de generación; reintentos y ritmo regulado para los embeddings. Estima el costo de cada generación con la tarifa de lista del modelo |
 
 Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
 ejecutable desde el navegador.
