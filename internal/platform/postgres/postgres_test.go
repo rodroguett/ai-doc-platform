@@ -38,6 +38,27 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	}
 }
 
+// Dos módulos numeran sus migraciones desde 1. Con tablas de versiones
+// distintas, la versión 1 de uno no impide aplicar la del otro.
+func TestMigrateTableKeepsModulesApart(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+
+	if _, err := postgres.Migrate(ctx, pool, probeMigrations()); err != nil {
+		t.Fatalf("migrar el primer módulo: %v", err)
+	}
+	applied, err := postgres.MigrateTable(ctx, pool, os.DirFS("testdata/other"), "other_goose_version")
+	if err != nil {
+		t.Fatalf("migrar el segundo módulo: %v", err)
+	}
+	if applied != 1 {
+		t.Fatalf("el segundo módulo aplicó %d migraciones, want 1", applied)
+	}
+	if _, err := pool.Exec(ctx, "SELECT 1 FROM other_probe"); err != nil {
+		t.Errorf("no existe la tabla del segundo módulo: %v", err)
+	}
+}
+
 func TestConnectDoesNotLeakTheURL(t *testing.T) {
 	const password = "s3cr3t-p4ss"
 	_, err := postgres.Connect(context.Background(), "postgres://user:"+password+"@host:port/db")

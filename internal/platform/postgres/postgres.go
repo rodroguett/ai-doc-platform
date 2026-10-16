@@ -64,11 +64,26 @@ func ConnectConfig(ctx context.Context, cfg *pgxpool.Config) (*pgxpool.Pool, err
 	return pool, nil
 }
 
-// Migrate aplica las migraciones pendientes de migrations y devuelve cuántas
-// aplicó. Toma un bloqueo de sesión en la base de datos, de modo que dos
-// instancias que arrancan a la vez no migran simultáneamente: la segunda
-// espera y encuentra el esquema al día.
+// DefaultVersionTable es la tabla en que goose anota las migraciones
+// aplicadas cuando no se indica otra. Es la de rag, el primer módulo con
+// esquema propio.
+const DefaultVersionTable = "goose_db_version"
+
+// Migrate aplica las migraciones pendientes de migrations, anotándolas en la
+// tabla de versiones por omisión, y devuelve cuántas aplicó.
 func Migrate(ctx context.Context, pool *pgxpool.Pool, migrations fs.FS) (int, error) {
+	return MigrateTable(ctx, pool, migrations, DefaultVersionTable)
+}
+
+// MigrateTable aplica las migraciones pendientes de migrations y devuelve
+// cuántas aplicó. Cada módulo con esquema propio anota sus versiones en una
+// tabla distinta: con una sola, la versión 1 de un módulo se confundiría con
+// la del otro.
+//
+// Toma un bloqueo de sesión en la base de datos, de modo que dos instancias
+// que arrancan a la vez no migran simultáneamente: la segunda espera y
+// encuentra el esquema al día.
+func MigrateTable(ctx context.Context, pool *pgxpool.Pool, migrations fs.FS, table string) (int, error) {
 	db := stdlib.OpenDBFromPool(pool)
 	defer func() { _ = db.Close() }()
 
@@ -80,7 +95,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, migrations fs.FS) (int, er
 		return 0, fmt.Errorf("preparar el bloqueo de migraciones: %w", err)
 	}
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations,
-		goose.WithSessionLocker(locker))
+		goose.WithSessionLocker(locker), goose.WithTableName(table))
 	if err != nil {
 		return 0, fmt.Errorf("leer las migraciones: %w", err)
 	}
