@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,17 @@ type fakeRecorder struct {
 	records []orchestrator.Usage
 	err     error
 	ctxErr  error // el estado del contexto al registrar
+
+	summary      orchestrator.UsageSummary
+	summaryErr   error
+	since, until time.Time
+}
+
+func (r *fakeRecorder) Summarize(_ context.Context, since, until time.Time) (orchestrator.UsageSummary, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.since, r.until = since, until
+	return r.summary, r.summaryErr
 }
 
 func (r *fakeRecorder) Record(ctx context.Context, u orchestrator.Usage) error {
@@ -220,4 +232,70 @@ func (g *cancelingGenerator) Generate(ctx context.Context, req llmgw.GenerateReq
 	out, err := g.fakeGenerator.Generate(ctx, req)
 	g.cancel()
 	return out, err
+}
+
+func date(y int, m time.Month, d int) time.Time { return time.Date(y, m, d, 0, 0, 0, 0, time.UTC) }
+
+// Sin periodo, se informan los 30 días que terminan hoy, en días UTC.
+func TestUsageDefaultsToLast30Days(t *testing.T) {
+	f := newUsageFixture("", nil)
+	f.recorder.summary = orchestrator.UsageSummary{Queries: 7}
+
+	got, err := f.service.Usage(context.Background(), orchestrator.UsagePeriod{})
+	if err != nil {
+		t.Fatalf("informar: %v", err)
+	}
+
+	// El reloj marca el 15 de octubre a las 21:30 UTC.
+	if !got.From.Equal(date(2026, 9, 16)) || !got.To.Equal(date(2026, 10, 15)) || got.Queries != 7 {
+		t.Errorf("got %v a %v con %d consultas", got.From, got.To, got.Queries)
+	}
+	// El último día se incluye entero.
+	if !f.recorder.since.Equal(date(2026, 9, 16)) || !f.recorder.until.Equal(date(2026, 10, 16)) {
+		t.Errorf("se sumó de %v a %v", f.recorder.since, f.recorder.until)
+	}
+}
+
+func TestUsageOfExplicitPeriod(t *testing.T) {
+	f := newUsageFixture("", nil)
+
+	got, err := f.service.Usage(context.Background(), orchestrator.UsagePeriod{From: date(2026, 10, 1), To: date(2026, 10, 1)})
+	if err != nil {
+		t.Fatalf("informar: %v", err)
+	}
+	if !got.From.Equal(date(2026, 10, 1)) || !got.To.Equal(date(2026, 10, 1)) || !f.recorder.until.Equal(date(2026, 10, 2)) {
+		t.Errorf("got %v a %v, sumado hasta %v", got.From, got.To, f.recorder.until)
+	}
+}
+
+func TestUsageRejectsInvalidPeriods(t *testing.T) {
+	f := newUsageFixture("", nil)
+	for name, p := range map[string]orchestrator.UsagePeriod{
+		"desde después de hasta": {From: date(2026, 10, 2), To: date(2026, 10, 1)},
+		"más de 366 días":        {From: date(2025, 10, 14), To: date(2026, 10, 15)},
+	} {
+		if _, err := f.service.Usage(context.Background(), p); !errors.Is(err, orchestrator.ErrInvalidInput) {
+			t.Errorf("%s: got %v, want ErrInvalidInput", name, err)
+		}
+	}
+	// 366 días exactos se aceptan.
+	if _, err := f.service.Usage(context.Background(), orchestrator.UsagePeriod{From: date(2025, 10, 15), To: date(2026, 10, 15)}); err != nil {
+		t.Errorf("366 días: %v", err)
+	}
+}
+
+func TestUsageUnavailable(t *testing.T) {
+	// Sin base de datos no hay registro que leer.
+	noStore := orchestrator.NewService(orchestrator.Config{Retriever: &fakeRetriever{}})
+	if _, err := noStore.Usage(context.Background(), orchestrator.UsagePeriod{}); !errors.Is(err, orchestrator.ErrUnavailable) {
+		t.Errorf("sin registro: got %v, want ErrUnavailable", err)
+	}
+
+	// Una falla de la base de datos no expone su detalle.
+	f := newUsageFixture("", nil)
+	f.recorder.summaryErr = errors.New("dial tcp 10.0.0.7:5432: conexión rechazada")
+	_, err := f.service.Usage(context.Background(), orchestrator.UsagePeriod{})
+	if !errors.Is(err, orchestrator.ErrUnavailable) || strings.Contains(err.Error(), "10.0.0.7") {
+		t.Errorf("got %v, want ErrUnavailable sin el detalle", err)
+	}
 }
