@@ -405,9 +405,16 @@ components:
           properties:
             prompt: { type: integer }
             completion: { type: integer }
-        cost_usd:
+        estimated_cost_usd:
           type: number
-          format: float
+          format: double
+          description: >-
+            Lo que habría costado la consulta con la tarifa de lista del
+            proveedor en su capa de pago (ADR-0013). No es lo que se paga: el
+            servicio corre en capas gratuitas. Falta si el modelo que
+            respondió no tiene tarifa conocida; un costo desconocido no se
+            informa como cero.
+          examples: [0.00124]
         latency_ms:
           type: object
           properties:

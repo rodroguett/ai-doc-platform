@@ -81,6 +81,16 @@ contra el código y contra `gh issue list`.
   distinto si el modelo concluyó que los pasajes no responden; nunca es un
   error. Caché de 10 minutos y tope de 500 consultas nuevas por día, en
   memoria. ADR-0011.
+- Cada consulta atendida deja una fila en `query_usage` (ADR-0013): modelo,
+  tokens, caché, desenlace y costo estimado a tarifa de lista, sin la
+  pregunta. Lo escribe `internal/orchestrator/store` a través de
+  `orchestrator.UsageRecorder`; si falla, la consulta se responde igual.
+  Las tarifas están en `internal/llmgw/gemini/prices.go`; un modelo sin
+  tarifa deja el costo nulo, nunca cero. La traza lo expone como
+  `estimated_cost_usd`.
+- Cada módulo con esquema propio anota sus migraciones en su tabla de
+  versiones: `rag` en `goose_db_version`, `orchestrator` en
+  `orchestrator_goose_version` (`postgres.MigrateTable`).
 - La verificación de citas es de forma: no comprueba que el pasaje diga lo
   que la respuesta afirma.
 - La búsqueda es exacta, sin índice sobre los vectores, a propósito.
@@ -167,6 +177,10 @@ Los ADRs en `docs/adr/` son la referencia. En resumen:
   (ADR-0012). Misma clave y misma capa gratuita que los embeddings. Los
   modelos Flash mayores devuelven 503 en la capa gratuita; no cambiarlos sin
   medir. Cada modelo se intenta una vez por consulta, sin reintentos.
+- **Costo estimado, no real** (ADR-0013). Todo corre en capas gratuitas;
+  el costo que se registra es lo que habría costado a tarifa de lista, y
+  se rotula como estimado en todas partes. Cambiar de modelo exige agregar
+  su tarifa.
 - **Token único de escritura** (ADR-0007). Las operaciones protegidas se
   declaran en el contrato con `security` y se repiten en
   `protectedOperations` (`internal/gateway/auth.go`); un test verifica que

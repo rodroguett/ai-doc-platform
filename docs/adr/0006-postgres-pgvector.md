@@ -144,7 +144,8 @@ parte que no conviene reescribir.
 - La tabla de fragmentos y su columna de vectores no se crean todavía: la
   dimensión la fija el modelo de embeddings, que se elige en #32.
 - Hay una sola tabla de versiones de goose. Si un segundo módulo llega a
-  tener migraciones propias, habrá que darle la suya.
+  tener migraciones propias, habrá que darle la suya. *(Actualización,
+  #66: `orchestrator` tiene la suya, `orchestrator_goose_version`.)*
 - Los identificadores son UUID versión 7, generados por la aplicación:
   ordenables por fecha de creación, lo que favorece al índice y a la
   paginación por cursor.

@@ -47,7 +47,16 @@ const (
 	maxExcerptChars = 700
 
 	noSourcesAnswer = "No se encontraron pasajes en el corpus que sustenten una respuesta a esta pregunta."
+
+	// recordTimeout acota cuánto puede demorar el registro del uso a quien
+	// consulta. Si no alcanza, el registro se pierde y la respuesta sale.
+	recordTimeout = 2 * time.Second
 )
+
+// UsageRecorder guarda el registro de cada consulta atendida (ADR-0013).
+type UsageRecorder interface {
+	Record(ctx context.Context, u Usage) error
+}
 
 // Retriever recupera los pasajes del corpus más parecidos a una consulta.
 // Lo implementa rag.
@@ -63,6 +72,10 @@ type Config struct {
 	// responden entonces en modo degradado, con los pasajes.
 	Generator llmgw.Generator
 
+	// Usage guarda el registro de cada consulta. Puede faltar: sin base de
+	// datos, las consultas se responden sin registrarse.
+	Usage UsageRecorder
+
 	// DailyBudget es el tope diario de consultas nuevas. Cero usa el valor
 	// por omisión.
 	DailyBudget int
@@ -75,6 +88,7 @@ type Config struct {
 type Service struct {
 	retriever Retriever
 	generator llmgw.Generator
+	usage     UsageRecorder
 	budget    int
 	now       func() time.Time
 
@@ -98,6 +112,7 @@ func NewService(cfg Config) *Service {
 	s := &Service{
 		retriever: cfg.Retriever,
 		generator: cfg.Generator,
+		usage:     cfg.Usage,
 		budget:    cfg.DailyBudget,
 		now:       cfg.Now,
 		cache:     map[string]cached{},
@@ -161,12 +176,19 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		},
 	}
 
+	// Lo que no llega a pedirle nada al modelo no cuesta nada. Si el modelo
+	// respondió, sus tokens se gastaron aunque su texto se descarte.
+	zero := 0.0
+	answer.Trace.EstimatedCostUSD = &zero
+	var spent draft
+
 	// Sin pasajes no se le pide nada al modelo: no hay de qué redactar, y
 	// la respuesta "no hay sustento" es definitiva, no una degradación.
 	cited := passages
+	outcome := OutcomeAnswered
 	switch {
 	case len(passages) == 0:
-		answer.Text = noSourcesAnswer
+		answer.Text, outcome = noSourcesAnswer, OutcomeNoSources
 
 	case written != nil:
 		// La misma pregunta ya se redactó hace poco: no se gasta otra
@@ -176,28 +198,32 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		answer.Trace.Provider, answer.Trace.Model = written.provider, written.model
 
 	case s.generator == nil:
-		answer.Text, answer.Trace.Degraded = degradedText(len(passages)), true
+		answer.Text, answer.Trace.Degraded, outcome = degradedText(len(passages)), true, OutcomeDegraded
 
 	default:
 		generationStart := s.now()
 		d, err := s.generate(ctx, q.Question, passages)
 		answer.Trace.Latency.Generation = s.now().Sub(generationStart)
+		spent = d
 		switch {
 		case err == nil:
 			s.remember(key, &d)
 			answer.Text, cited = d.text, pick(passages, d.cited)
 			answer.Trace.Provider, answer.Trace.Model = d.provider, d.model
-			answer.Trace.Tokens = TokenUsage{Prompt: d.promptTokens, Completion: d.outputTokens}
 		case ctx.Err() != nil:
 			return Answer{}, ctx.Err()
 		case errors.Is(err, errNoCitations):
 			// El modelo respondió, pero sin citar: casi siempre, que los
 			// pasajes no responden. No se entrega su texto, que no se puede
 			// verificar, pero sí se dice qué pasó.
-			answer.Text, answer.Trace.Degraded = notAnsweredText(len(passages)), true
+			answer.Text, answer.Trace.Degraded, outcome = notAnsweredText(len(passages)), true, OutcomeNotAnswered
 		default:
 			slog.WarnContext(ctx, "la consulta se responde en modo degradado", "error", err)
-			answer.Text, answer.Trace.Degraded = degradedText(len(passages)), true
+			answer.Text, answer.Trace.Degraded, outcome = degradedText(len(passages)), true, OutcomeDegraded
+		}
+		if spent.model != "" {
+			answer.Trace.Tokens = TokenUsage{Prompt: spent.promptTokens, Completion: spent.outputTokens}
+			answer.Trace.EstimatedCostUSD = spent.cost
 		}
 	}
 
@@ -221,7 +247,41 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		}
 	}
 	answer.Trace.Latency.Total = s.now().Sub(start)
+
+	provider, model := answer.Trace.Provider, answer.Trace.Model
+	if spent.model != "" {
+		// Un texto descartado no tiene autor en la traza, pero su costo
+		// se atribuye al modelo que lo escribió.
+		provider, model = spent.provider, spent.model
+	}
+	s.record(ctx, Usage{
+		At:               start,
+		TraceID:          answer.Trace.ID,
+		Collection:       q.Collection,
+		Provider:         provider,
+		Model:            model,
+		PromptTokens:     answer.Trace.Tokens.Prompt,
+		OutputTokens:     answer.Trace.Tokens.Completion,
+		Cache:            cache,
+		Outcome:          outcome,
+		EstimatedCostUSD: answer.Trace.EstimatedCostUSD,
+	})
 	return answer, nil
+}
+
+// record guarda el uso de la consulta. Una falla no impide responder: se
+// prefiere responder a contar, y queda en el log.
+func (s *Service) record(ctx context.Context, u Usage) {
+	if s.usage == nil {
+		return
+	}
+	// Quien consulta pudo cortar la conexión, pero la consulta ya se atendió
+	// y gastó lo que gastó.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
+	defer cancel()
+	if err := s.usage.Record(ctx, u); err != nil {
+		slog.WarnContext(ctx, "no se registró el uso de la consulta", "traza", u.TraceID, "error", err)
+	}
 }
 
 // pick devuelve los pasajes en las posiciones dadas.

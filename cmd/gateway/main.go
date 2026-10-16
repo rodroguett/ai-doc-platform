@@ -13,6 +13,7 @@ import (
 	"github.com/rodroguett/ai-doc-platform/internal/gateway"
 	"github.com/rodroguett/ai-doc-platform/internal/llmgw/gemini"
 	"github.com/rodroguett/ai-doc-platform/internal/orchestrator"
+	usagestore "github.com/rodroguett/ai-doc-platform/internal/orchestrator/store"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/config"
 	"github.com/rodroguett/ai-doc-platform/internal/platform/postgres"
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
@@ -55,11 +56,16 @@ func run() error {
 		}
 		defer pool.Close()
 
+		// Cada módulo es dueño de su esquema y anota sus versiones aparte.
 		applied, err := postgres.Migrate(ctx, pool, rag.Migrations())
 		if err != nil {
 			return err
 		}
-		slog.Info("base de datos lista", "migraciones_aplicadas", applied)
+		appliedOrchestrator, err := postgres.MigrateTable(ctx, pool, orchestrator.Migrations(), orchestrator.MigrationsTable)
+		if err != nil {
+			return err
+		}
+		slog.Info("base de datos lista", "migraciones_aplicadas", applied+appliedOrchestrator)
 
 		// El motor de extracción se inicia en la primera subida, no aquí.
 		extractor := pdftext.New()
@@ -112,7 +118,11 @@ func run() error {
 			if err != nil {
 				return err
 			}
-			services.Queries = orchestrator.NewService(orchestrator.Config{Retriever: documents, Generator: generator})
+			// Cada consulta deja su registro de uso y costo estimado
+			// (ADR-0013).
+			services.Queries = orchestrator.NewService(orchestrator.Config{
+				Retriever: documents, Generator: generator, Usage: usagestore.New(pool),
+			})
 		}
 		options = append(options, gateway.WithReadinessCheck("database", pool.Ping))
 	}

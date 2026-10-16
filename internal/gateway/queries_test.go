@@ -173,6 +173,7 @@ func (f fixedQueries) Answer(context.Context, orchestrator.Query) (orchestrator.
 // Una respuesta redactada por un modelo llega con su procedencia y su
 // consumo en la traza.
 func TestCreateQueryReportsGeneratedAnswer(t *testing.T) {
+	estimatedCost := 0.0012832
 	chunkID, documentID := uuid.New(), uuid.New()
 	s := NewServer(Services{Queries: fixedQueries{answer: orchestrator.Answer{
 		ID:   uuid.New(),
@@ -183,9 +184,11 @@ func TestCreateQueryReportsGeneratedAnswer(t *testing.T) {
 		}},
 		Trace: orchestrator.Trace{
 			ID: "0123456789abcdef0123456789abcdef", Provider: "gemini", Model: "gemini-3.5-flash-lite",
-			Cache:   orchestrator.CacheMiss,
-			Tokens:  orchestrator.TokenUsage{Prompt: 3019, Completion: 151},
-			Latency: orchestrator.Latency{Total: 2300 * time.Millisecond, Retrieval: 300 * time.Millisecond, Generation: 2000 * time.Millisecond},
+			Cache:  orchestrator.CacheMiss,
+			Tokens: orchestrator.TokenUsage{Prompt: 3019, Completion: 151},
+
+			EstimatedCostUSD: &estimatedCost,
+			Latency:          orchestrator.Latency{Total: 2300 * time.Millisecond, Retrieval: 300 * time.Millisecond, Generation: 2000 * time.Millisecond},
 		},
 	}}})
 
@@ -202,7 +205,24 @@ func TestCreateQueryReportsGeneratedAnswer(t *testing.T) {
 	if tr.Tokens == nil || *tr.Tokens.Prompt != 3019 || *tr.Tokens.Completion != 151 {
 		t.Errorf("got tokens %+v", tr.Tokens)
 	}
+	if tr.EstimatedCostUsd == nil || *tr.EstimatedCostUsd != estimatedCost {
+		t.Errorf("got costo estimado %v, want %v", tr.EstimatedCostUsd, estimatedCost)
+	}
 	if *tr.LatencyMs.Total != 2300 || *tr.LatencyMs.Retrieval != 300 || *tr.LatencyMs.Generation != 2000 {
 		t.Errorf("got latencias %+v", tr.LatencyMs)
+	}
+}
+
+// Un costo desconocido no se informa como cero: el campo se omite.
+func TestCreateQueryOmitsUnknownCost(t *testing.T) {
+	s := NewServer(Services{Queries: fixedQueries{answer: orchestrator.Answer{
+		ID: uuid.New(), Text: "Se monitorea MP-10 [1].",
+		Trace: orchestrator.Trace{ID: "0123456789abcdef0123456789abcdef", Provider: "gemini", Model: "modelo-nuevo", Cache: orchestrator.CacheMiss},
+	}}})
+
+	rec := postQuery(t, s, `{"question": "¿Qué se monitorea?"}`)
+
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "estimated_cost_usd") {
+		t.Errorf("got status %d y cuerpo %s, want sin costo", rec.Code, rec.Body)
 	}
 }

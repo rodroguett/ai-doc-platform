@@ -123,8 +123,13 @@ type Trace struct {
 	// redactó la respuesta: se entregan los pasajes sin texto generado.
 	Degraded bool
 
-	Tokens    TokenUsage
-	CostUSD   float64
+	Tokens TokenUsage
+
+	// EstimatedCostUSD es lo que habría costado la consulta con la tarifa
+	// de lista del modelo (ADR-0013); no es lo que se paga. Es nil si el
+	// modelo no tiene tarifa conocida.
+	EstimatedCostUSD *float64
+
 	Latency   Latency
 	Retrieved []RetrievedChunk // solo con TraceFull
 }
@@ -140,6 +145,47 @@ type Latency struct {
 	Total      time.Duration
 	Retrieval  time.Duration
 	Generation time.Duration
+}
+
+// Outcome es cómo terminó una consulta atendida.
+type Outcome string
+
+const (
+	// OutcomeAnswered: un modelo redactó la respuesta y sus citas pasaron
+	// la verificación.
+	OutcomeAnswered Outcome = "answered"
+
+	// OutcomeNotAnswered: el modelo respondió sin citar, casi siempre
+	// porque los pasajes no responden la pregunta.
+	OutcomeNotAnswered Outcome = "not_answered"
+
+	// OutcomeDegraded: ningún modelo redactó una respuesta utilizable.
+	OutcomeDegraded Outcome = "degraded"
+
+	// OutcomeNoSources: ningún pasaje alcanzó el puntaje mínimo.
+	OutcomeNoSources Outcome = "no_sources"
+)
+
+// Usage es el registro de una consulta atendida (ADR-0013). No contiene la
+// pregunta, la respuesta ni los pasajes.
+type Usage struct {
+	At         time.Time
+	TraceID    string
+	Collection string
+
+	// Provider y Model son los del modelo que respondió, aunque su texto se
+	// haya descartado, o "none" si ninguno respondió.
+	Provider string
+	Model    string
+
+	PromptTokens int
+	OutputTokens int
+
+	Cache   CacheStatus
+	Outcome Outcome
+
+	// EstimatedCostUSD es nil si el modelo no tiene tarifa conocida.
+	EstimatedCostUSD *float64
 }
 
 // RetrievedChunk es un pasaje recuperado, se haya citado o no.

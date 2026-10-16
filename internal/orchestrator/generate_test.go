@@ -19,6 +19,7 @@ type fakeGenerator struct {
 	mu       sync.Mutex
 	text     string
 	err      error
+	cost     *float64
 	requests []llmgw.GenerateRequest
 }
 
@@ -29,7 +30,7 @@ func (g *fakeGenerator) Generate(_ context.Context, req llmgw.GenerateRequest) (
 	if g.err != nil {
 		return llmgw.Generation{}, g.err
 	}
-	return llmgw.Generation{Text: g.text, Provider: "gemini", Model: "modelo-de-prueba", PromptTokens: 3000, OutputTokens: 150}, nil
+	return llmgw.Generation{Text: g.text, Provider: "gemini", Model: "modelo-de-prueba", PromptTokens: 3000, OutputTokens: 150, EstimatedCostUSD: g.cost}, nil
 }
 
 func (g *fakeGenerator) count() int {
@@ -173,8 +174,13 @@ func TestAnswerRejectsUnsupportedText(t *testing.T) {
 			if !strings.Contains(answer.Text, "4") || len(answer.Citations) != 4 {
 				t.Errorf("got %q con %d citas, want los 4 pasajes", answer.Text, len(answer.Citations))
 			}
-			if answer.Trace.Provider != "none" || answer.Trace.Tokens.Prompt != 0 {
+			// El texto no se entregó, así que no tiene autor; pero los tokens
+			// se gastaron y la traza los declara (ADR-0013).
+			if answer.Trace.Provider != "none" || answer.Trace.Model != "none" {
 				t.Errorf("la traza atribuye la respuesta al modelo: %+v", answer.Trace)
+			}
+			if answer.Trace.Tokens.Prompt != 3000 || answer.Trace.Tokens.Completion != 150 {
+				t.Errorf("la traza no declara los tokens gastados: %+v", answer.Trace.Tokens)
 			}
 		})
 	}
