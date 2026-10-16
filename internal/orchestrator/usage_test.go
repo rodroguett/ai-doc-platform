@@ -24,6 +24,23 @@ type fakeRecorder struct {
 	summary      orchestrator.UsageSummary
 	summaryErr   error
 	since, until time.Time
+
+	count    int
+	countErr error
+	counts   []time.Time // desde cuándo se pidió contar, en cada llamada
+}
+
+func (r *fakeRecorder) CountNew(_ context.Context, since time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.counts = append(r.counts, since)
+	return r.count, r.countErr
+}
+
+func (r *fakeRecorder) countCalls() []time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]time.Time(nil), r.counts...)
 }
 
 func (r *fakeRecorder) Summarize(_ context.Context, since, until time.Time) (orchestrator.UsageSummary, error) {
@@ -297,5 +314,112 @@ func TestUsageUnavailable(t *testing.T) {
 	_, err := f.service.Usage(context.Background(), orchestrator.UsagePeriod{})
 	if !errors.Is(err, orchestrator.ErrUnavailable) || strings.Contains(err.Error(), "10.0.0.7") {
 		t.Errorf("got %v, want ErrUnavailable sin el detalle", err)
+	}
+}
+
+// newBudgetFixture arma un servicio con tope de budget consultas nuevas por
+// día, cuyo registro de uso ya cuenta registered para hoy.
+func newBudgetFixture(budget, registered int) (*orchestrator.Service, *fakeRecorder, *time.Time) {
+	f := newUsageFixture("Se monitorea MP-10 [1].", costOf(0.001))
+	f.recorder.count = registered
+	clock := f.clock
+	s := orchestrator.NewService(orchestrator.Config{
+		Retriever: f.retriever, Generator: f.generator, Usage: f.recorder, DailyBudget: budget,
+		Now: func() time.Time { return clock },
+	})
+	return s, f.recorder, &clock
+}
+
+func question(i int) orchestrator.Query {
+	return orchestrator.Query{Question: fmt.Sprintf("¿Pregunta número %d?", i)}
+}
+
+// Un reinicio de la instancia no reinicia el tope: el conteo del día se lee
+// del registro de uso.
+func TestDailyBudgetSurvivesRestart(t *testing.T) {
+	s, _, _ := newBudgetFixture(3, 2)
+
+	ask(t, s, question(1))
+	_, err := s.Answer(context.Background(), question(2))
+
+	if !errors.Is(err, orchestrator.ErrQuotaExhausted) {
+		t.Fatalf("got %v, want ErrQuotaExhausted: el registro ya contaba 2 de 3", err)
+	}
+}
+
+// El registro se lee una vez por día, no en cada pregunta.
+func TestDailyCountIsLoadedOncePerDay(t *testing.T) {
+	s, recorder, clock := newBudgetFixture(100, 0)
+
+	for i := range 3 {
+		ask(t, s, question(i))
+	}
+	if calls := recorder.countCalls(); len(calls) != 1 || !calls[0].Equal(date(2026, 10, 15)) {
+		t.Fatalf("got lecturas %v, want una, desde la medianoche UTC", calls)
+	}
+
+	*clock = clock.Add(24 * time.Hour)
+	ask(t, s, question(10))
+	if calls := recorder.countCalls(); len(calls) != 2 || !calls[1].Equal(date(2026, 10, 16)) {
+		t.Errorf("got lecturas %v, want una más al cambiar el día", calls)
+	}
+}
+
+// Las preguntas repetidas salen de la caché y no gastan cupo ni leen el
+// registro.
+func TestCachedAnswersDoNotSpendBudget(t *testing.T) {
+	s, recorder, _ := newBudgetFixture(1, 0)
+
+	ask(t, s, question(1))
+	ask(t, s, question(1))
+
+	if calls := recorder.countCalls(); len(calls) != 1 {
+		t.Errorf("got %d lecturas del registro, want 1", len(calls))
+	}
+}
+
+// Si el registro no responde, el tope sigue en memoria y la lectura se
+// reintenta en la consulta siguiente.
+func TestDailyBudgetFallsBackToMemory(t *testing.T) {
+	s, recorder, _ := newBudgetFixture(2, 0)
+	recorder.countErr = errors.New("conexión rechazada")
+
+	ask(t, s, question(1))
+	if calls := recorder.countCalls(); len(calls) != 1 {
+		t.Fatalf("got %d lecturas, want 1", len(calls))
+	}
+
+	// El registro vuelve, y dice que el día ya tenía una consulta además de
+	// la que esta instancia atendió: se toma el mayor.
+	recorder.mu.Lock()
+	recorder.countErr, recorder.count = nil, 2
+	recorder.mu.Unlock()
+	_, err := s.Answer(context.Background(), question(2))
+
+	if !errors.Is(err, orchestrator.ErrQuotaExhausted) {
+		t.Errorf("got %v, want ErrQuotaExhausted", err)
+	}
+	if calls := recorder.countCalls(); len(calls) != 2 {
+		t.Errorf("got %d lecturas, want 2: la segunda reintenta", len(calls))
+	}
+}
+
+// Lo atendido mientras el registro no respondía no se olvida cuando vuelve:
+// las consultas en curso o no registradas siguen contando.
+func TestDailyCountKeepsWhatMemorySpent(t *testing.T) {
+	s, recorder, _ := newBudgetFixture(2, 0)
+	recorder.countErr = errors.New("conexión rechazada")
+	ask(t, s, question(1))
+
+	// El registro vuelve sin la consulta anterior, que no alcanzó a
+	// registrarse.
+	recorder.mu.Lock()
+	recorder.countErr = nil
+	recorder.mu.Unlock()
+	ask(t, s, question(2))
+	_, err := s.Answer(context.Background(), question(3))
+
+	if !errors.Is(err, orchestrator.ErrQuotaExhausted) {
+		t.Errorf("got %v, want ErrQuotaExhausted: esta instancia ya atendió 2", err)
 	}
 }

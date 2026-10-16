@@ -77,3 +77,14 @@ func (s *Store) Summarize(ctx context.Context, since, until time.Time) (orchestr
 	}
 	return out, nil
 }
+
+// CountNew cuenta las consultas registradas desde since que no vinieron de
+// la caché.
+func (s *Store) CountNew(ctx context.Context, since time.Time) (int, error) {
+	var n int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM query_usage WHERE occurred_at >= $1 AND cache <> 'hit'`, since).Scan(&n); err != nil {
+		return 0, fmt.Errorf("contar las consultas nuevas: %w", err)
+	}
+	return n, nil
+}

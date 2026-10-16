@@ -53,6 +53,10 @@ type ProviderUsage struct {
 // (excluido). Devuelve el resumen sin las fechas del periodo.
 type UsageReader interface {
 	Summarize(ctx context.Context, since, until time.Time) (UsageSummary, error)
+
+	// CountNew cuenta las consultas registradas desde since que no vinieron
+	// de la caché: las que gastaron una petición de embeddings.
+	CountNew(ctx context.Context, since time.Time) (int, error)
 }
 
 // UsageStore guarda y lee el registro de uso.
