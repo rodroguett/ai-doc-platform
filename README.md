@@ -43,7 +43,7 @@ frecuencia.
 
 | Módulo | Estado |
 |---|---|
-| `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con el orchestrator; `GET /v1/usage`, 501 |
+| `gateway` | Desplegado. Documentos y trabajos operan sobre Postgres; `POST /v1/queries` responde con el orchestrator; `GET /v1/usage` informa consultas, tokens y costo estimado de un periodo |
 | `rag` | Ingesta completa y búsqueda por similitud: extrae el texto de un PDF, lo fragmenta por considerandos y secciones —la introducción breve de un considerando acompaña a cada una de sus subsecciones—, genera sus embeddings en un trabajo reanudable, y recupera los pasajes más parecidos a una pregunta, buscando las siglas del SEIA también por su nombre completo |
 | `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real; las marcas puestas en una frase que solo dice que los pasajes no contienen algo no cuentan como cita. Si el modelo falla o no cita, responde en modo degradado. Caché de preguntas repetidas y tope diario. Cada consulta deja en Postgres su consumo de tokens y su costo estimado a tarifa de lista, sin la pregunta (ADR-0013) |
 | `llmgw` | Embeddings y generación con Gemini detrás de interfaces que ocultan al proveedor. Respaldo entre dos modelos de generación; reintentos y ritmo regulado para los embeddings. Estima el costo de cada generación con la tarifa de lista del modelo |
@@ -63,6 +63,16 @@ cada cita trae el considerando y las páginas donde verificarla. La traza dice
 qué modelo la redactó, con cuántos tokens y en cuánto tiempo; si dice
 `"degraded": true`, ningún modelo la redactó y lo que se entrega son los
 pasajes.
+
+La traza también trae `estimated_cost_usd`: lo que habría costado la
+consulta a tarifa de lista. El servicio corre en capas gratuitas y no paga
+nada; el costo estimado dice cuánto costaría si no fuera así
+([ADR-0013](docs/adr/0013-costo-estimado-por-consulta.md)). El consumo
+acumulado de un periodo:
+
+```bash
+curl -s 'https://gateway-w46qaen3gq-uc.a.run.app/v1/usage?from=2026-10-01'
+```
 
 ## Arquitectura
 

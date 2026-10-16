@@ -15,6 +15,11 @@ type QueryService interface {
 	Answer(ctx context.Context, q orchestrator.Query) (orchestrator.Answer, error)
 }
 
+// UsageService informa el consumo de un periodo.
+type UsageService interface {
+	Usage(ctx context.Context, p orchestrator.UsagePeriod) (orchestrator.UsageSummary, error)
+}
+
 // DocumentService registra y consulta documentos y sus trabajos de ingesta.
 type DocumentService interface {
 	Submit(ctx context.Context, u rag.Upload) (rag.Job, error)
@@ -31,11 +36,12 @@ type DocumentService interface {
 // una interfaz definida aquí, del lado de quien la consume, y la implementa
 // otro módulo.
 //
-// Ambas pueden ser nil: sin base de datos configurada, los endpoints que
+// Todas pueden ser nil: sin base de datos configurada, los endpoints que
 // dependen de ellas responden 503.
 type Services struct {
 	Queries   QueryService
 	Documents DocumentService
+	Usage     UsageService
 }
 
 // API implementa el contrato definido en api/openapi.yaml. Cada método
@@ -43,8 +49,7 @@ type Services struct {
 // servicios.
 //
 // Implementar la interfaz generada hace que cualquier endpoint declarado en
-// el spec y ausente en el código impida construir el binario. Los que aún no
-// tienen servicio detrás responden 501.
+// el spec y ausente en el código impida construir el binario.
 type API struct {
 	svc Services
 
@@ -53,7 +58,3 @@ type API struct {
 }
 
 var _ api.StrictServerInterface = (*API)(nil)
-
-func (a *API) GetUsage(ctx context.Context, req api.GetUsageRequestObject) (api.GetUsageResponseObject, error) {
-	return nil, errNotImplemented
-}

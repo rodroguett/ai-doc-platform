@@ -72,9 +72,10 @@ type Config struct {
 	// responden entonces en modo degradado, con los pasajes.
 	Generator llmgw.Generator
 
-	// Usage guarda el registro de cada consulta. Puede faltar: sin base de
-	// datos, las consultas se responden sin registrarse.
-	Usage UsageRecorder
+	// Usage guarda y lee el registro de cada consulta. Puede faltar: sin
+	// base de datos, las consultas se responden sin registrarse y no hay
+	// informe de uso.
+	Usage UsageStore
 
 	// DailyBudget es el tope diario de consultas nuevas. Cero usa el valor
 	// por omisión.
@@ -88,7 +89,7 @@ type Config struct {
 type Service struct {
 	retriever Retriever
 	generator llmgw.Generator
-	usage     UsageRecorder
+	usage     UsageStore
 	budget    int
 	now       func() time.Time
 

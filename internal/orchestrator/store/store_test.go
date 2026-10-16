@@ -2,6 +2,8 @@ package store_test
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -71,5 +73,66 @@ func TestRecordRejectsInvalidOutcome(t *testing.T) {
 		Cache: orchestrator.CacheMiss, Outcome: "inventado"})
 	if err == nil {
 		t.Fatal("se registró un desenlace que no existe")
+	}
+}
+
+func TestSummarize(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.MigrateTable(ctx, pool, orchestrator.Migrations(), orchestrator.MigrationsTable); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	s := store.New(pool)
+
+	day := time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)
+	cost := func(v float64) *float64 { return &v }
+	for i, u := range []orchestrator.Usage{
+		{At: day.Add(time.Hour), Provider: "gemini", Model: "m", PromptTokens: 3000, OutputTokens: 60, Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeAnswered, EstimatedCostUSD: cost(0.001)},
+		{At: day.Add(2 * time.Hour), Provider: "gemini", Model: "m", Cache: orchestrator.CacheHit, Outcome: orchestrator.OutcomeAnswered, EstimatedCostUSD: cost(0)},
+		// Sin tarifa: cuenta como consulta, no suma al costo.
+		{At: day.Add(3 * time.Hour), Provider: "gemini", Model: "nuevo", PromptTokens: 1000, OutputTokens: 40, Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeAnswered},
+		{At: day.Add(4 * time.Hour), Provider: "none", Model: "none", Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeNoSources, EstimatedCostUSD: cost(0)},
+		// Fuera del periodo, por un instante a cada lado.
+		{At: day.Add(-time.Nanosecond * 1000), Provider: "gemini", Model: "m", PromptTokens: 9, Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeAnswered, EstimatedCostUSD: cost(5)},
+		{At: day.Add(24 * time.Hour), Provider: "gemini", Model: "m", PromptTokens: 9, Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeAnswered, EstimatedCostUSD: cost(5)},
+	} {
+		u.TraceID = fmt.Sprint(i)
+		if err := s.Record(ctx, u); err != nil {
+			t.Fatalf("registrar %d: %v", i, err)
+		}
+	}
+
+	got, err := s.Summarize(ctx, day, day.Add(24*time.Hour))
+	if err != nil {
+		t.Fatalf("sumar: %v", err)
+	}
+
+	if got.Queries != 4 || got.CacheHits != 1 || got.TokensTotal != 4100 || got.QueriesWithoutCost != 1 {
+		t.Errorf("totales inesperados: %+v", got)
+	}
+	if math.Abs(got.EstimatedCostUSD-0.001) > 1e-12 {
+		t.Errorf("got costo %v, want 0.001", got.EstimatedCostUSD)
+	}
+	want := []orchestrator.ProviderUsage{{Provider: "gemini", Queries: 3, EstimatedCostUSD: 0.001}, {Provider: "none", Queries: 1}}
+	if len(got.ByProvider) != 2 || got.ByProvider[0].Provider != want[0].Provider || got.ByProvider[0].Queries != 3 ||
+		math.Abs(got.ByProvider[0].EstimatedCostUSD-0.001) > 1e-12 || got.ByProvider[1] != want[1] {
+		t.Errorf("got por proveedor %+v, want %+v", got.ByProvider, want)
+	}
+}
+
+// Un periodo sin consultas no es un error: todo en cero.
+func TestSummarizeEmptyPeriod(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.MigrateTable(ctx, pool, orchestrator.Migrations(), orchestrator.MigrationsTable); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+
+	got, err := store.New(pool).Summarize(ctx, time.Now().Add(-time.Hour), time.Now())
+	if err != nil {
+		t.Fatalf("sumar: %v", err)
+	}
+	if got.Queries != 0 || got.EstimatedCostUSD != 0 || got.ByProvider == nil || len(got.ByProvider) != 0 {
+		t.Errorf("got %+v, want todo en cero y una lista vacía", got)
 	}
 }

@@ -28,8 +28,8 @@ contra el código y contra `gh issue list`.
 - El sistema es **un solo binario**, no cuatro servicios, y así seguirá
   hasta que se cumplan las condiciones de extracción de ADR-0005.
 - El gateway implementa la interfaz generada desde el contrato OpenAPI.
-  Todas las operaciones están implementadas salvo `GET /v1/usage`, que
-  devuelve 501. Los errores respetan RFC 9457. Ya no hay datos de ejemplo.
+  Todas las operaciones están implementadas. Los errores respetan RFC 9457.
+  Ya no hay datos de ejemplo.
 - `/health` indica que el proceso está vivo y `/ready` verifica las
   dependencias (hoy, la base de datos). No usar rutas terminadas en `z`:
   Cloud Run las intercepta.
@@ -87,7 +87,9 @@ contra el código y contra `gh issue list`.
   `orchestrator.UsageRecorder`; si falla, la consulta se responde igual.
   Las tarifas están en `internal/llmgw/gemini/prices.go`; un modelo sin
   tarifa deja el costo nulo, nunca cero. La traza lo expone como
-  `estimated_cost_usd`.
+  `estimated_cost_usd`, y `GET /v1/usage` suma el registro por periodo
+  (días UTC; por omisión, los últimos 30; a lo más 366). Es público, como
+  las demás lecturas.
 - Cada módulo con esquema propio anota sus migraciones en su tabla de
   versiones: `rag` en `goose_db_version`, `orchestrator` en
   `orchestrator_goose_version` (`postgres.MigrateTable`).
