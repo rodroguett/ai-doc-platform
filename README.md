@@ -264,6 +264,7 @@ bien no es un registro, es publicidad.
 - [ADR-0010](docs/adr/0010-trabajos-con-cloud-tasks.md) — Ejecutar los trabajos en pasadas despachadas por Cloud Tasks
 - [ADR-0011](docs/adr/0011-recuperacion-y-modo-degradado.md) — Recuperar con búsqueda exacta y responder sin generación como modo degradado
 - [ADR-0012](docs/adr/0012-generacion-gemini-flash-lite.md) — Redactar las respuestas con Gemini Flash-Lite en su capa gratuita
+- [ADR-0013](docs/adr/0013-costo-estimado-por-consulta.md) — Registrar cada consulta con su costo estimado a tarifa de lista
 
 ## Contribuir
 
