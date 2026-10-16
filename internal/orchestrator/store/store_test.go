@@ -136,3 +136,34 @@ func TestSummarizeEmptyPeriod(t *testing.T) {
 		t.Errorf("got %+v, want todo en cero y una lista vacía", got)
 	}
 }
+
+// Las consultas nuevas son las que no vinieron de la caché.
+func TestCountNew(t *testing.T) {
+	pool := postgrestest.NewPool(t)
+	ctx := context.Background()
+	if _, err := postgres.MigrateTable(ctx, pool, orchestrator.Migrations(), orchestrator.MigrationsTable); err != nil {
+		t.Fatalf("migrar: %v", err)
+	}
+	s := store.New(pool)
+
+	today := time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)
+	for i, u := range []orchestrator.Usage{
+		{At: today.Add(time.Hour), Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeAnswered},
+		{At: today.Add(2 * time.Hour), Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeNoSources},
+		{At: today.Add(3 * time.Hour), Cache: orchestrator.CacheHit, Outcome: orchestrator.OutcomeAnswered},
+		{At: today.Add(-time.Hour), Cache: orchestrator.CacheMiss, Outcome: orchestrator.OutcomeAnswered},
+	} {
+		u.TraceID, u.Provider, u.Model = fmt.Sprint(i), "none", "none"
+		if err := s.Record(ctx, u); err != nil {
+			t.Fatalf("registrar %d: %v", i, err)
+		}
+	}
+
+	n, err := s.CountNew(ctx, today)
+	if err != nil {
+		t.Fatalf("contar: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("got %d consultas nuevas, want 2", n)
+	}
+}

@@ -79,8 +79,10 @@ contra el código y contra `gh issue list`.
   renumeradas. Si el modelo falla o su texto no pasa la verificación,
   responde en modo degradado (los pasajes, `degraded: true`), con un texto
   distinto si el modelo concluyó que los pasajes no responden; nunca es un
-  error. Caché de 10 minutos y tope de 500 consultas nuevas por día, en
-  memoria. ADR-0011.
+  error. Caché de 10 minutos en memoria y tope de 500 consultas nuevas por
+  día UTC. El tope se lee del registro de uso con la primera consulta del
+  día de cada instancia y desde ahí se cuenta en memoria: es exacto con una
+  sola instancia, y si Neon no responde sigue en memoria. ADR-0011.
 - Cada consulta atendida deja una fila en `query_usage` (ADR-0013): modelo,
   tokens, caché, desenlace y costo estimado a tarifa de lista, sin la
   pregunta. Lo escribe `internal/orchestrator/store` a través de

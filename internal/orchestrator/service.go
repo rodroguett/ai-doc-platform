@@ -26,6 +26,9 @@ const (
 	// capa gratuita, que comparte con la ingesta (ADR-0008).
 	defaultDailyBudget = 500
 
+	// countTimeout acota la lectura del conteo del día desde el registro.
+	countTimeout = 2 * time.Second
+
 	// La caché guarda lo recuperado para una pregunta. Vence pronto porque
 	// el corpus cambia: un documento recién ingerido debe poder aparecer.
 	cacheTTL        = 10 * time.Minute
@@ -97,6 +100,10 @@ type Service struct {
 	cache    map[string]cached
 	spentDay string
 	spent    int
+
+	// spentLoaded indica que spent ya incluye lo que el registro de uso
+	// contaba para el día al arrancar la instancia.
+	spentLoaded bool
 }
 
 type cached struct {
@@ -318,17 +325,11 @@ func (s *Service) retrieve(ctx context.Context, key string, q Query) ([]rag.Pass
 		s.mu.Unlock()
 		return entry.passages, entry.draft, CacheHit, nil
 	}
-	if day := now.UTC().Format(time.DateOnly); day != s.spentDay {
-		s.spentDay, s.spent = day, 0
-	}
-	if s.spent >= s.budget {
-		s.mu.Unlock()
-		return nil, nil, "", fmt.Errorf("%w: se atendieron las %d consultas nuevas de hoy", ErrQuotaExhausted, s.budget)
-	}
-	// Se descuenta antes de consultar: así varias consultas simultáneas no
-	// pasan todas con el último cupo.
-	s.spent++
 	s.mu.Unlock()
+
+	if err := s.reserve(ctx, now); err != nil {
+		return nil, nil, "", err
+	}
 
 	passages, err := s.retriever.Search(ctx, q.Question, rag.SearchOptions{Collection: q.Collection, TopK: q.TopK})
 	switch {
@@ -351,6 +352,55 @@ func (s *Service) retrieve(ctx context.Context, key string, q Query) ([]rag.Pass
 	s.mu.Unlock()
 
 	return passages, nil, CacheMiss, nil
+}
+
+// reserve descuenta una consulta nueva del tope diario, o devuelve
+// ErrQuotaExhausted si ya no quedan.
+//
+// El conteo vive en memoria, pero la primera consulta de cada día lo lee del
+// registro de uso: así un reinicio de la instancia no reinicia el tope. Desde
+// ahí se cuenta en memoria, sin consultar la base de datos en cada
+// pregunta. Es exacto mientras haya una sola instancia, que es el máximo
+// configurado en Cloud Run.
+//
+// Si el registro no responde, se sigue con el conteo en memoria y se
+// reintenta en la consulta siguiente: un tope que puede quedar corto es
+// preferible a no responder.
+func (s *Service) reserve(ctx context.Context, now time.Time) error {
+	day := now.UTC().Format(time.DateOnly)
+
+	s.mu.Lock()
+	if day != s.spentDay {
+		s.spentDay, s.spent, s.spentLoaded = day, 0, false
+	}
+	load := !s.spentLoaded && s.usage != nil
+	s.mu.Unlock()
+
+	if load {
+		countCtx, cancel := context.WithTimeout(ctx, countTimeout)
+		n, err := s.usage.CountNew(countCtx, midnight(now))
+		cancel()
+		s.mu.Lock()
+		switch {
+		case err != nil:
+			slog.WarnContext(ctx, "no se pudo leer el conteo del día; el tope sigue en memoria", "error", err)
+		case s.spentDay == day:
+			// Lo registrado no incluye las consultas en curso, que ya están
+			// en spent: se toma el mayor de los dos.
+			s.spent, s.spentLoaded = max(s.spent, n), true
+		}
+		s.mu.Unlock()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.spent >= s.budget {
+		return fmt.Errorf("%w: se atendieron las %d consultas nuevas de hoy", ErrQuotaExhausted, s.budget)
+	}
+	// Se descuenta antes de consultar: así varias consultas simultáneas no
+	// pasan todas con el último cupo.
+	s.spent++
+	return nil
 }
 
 // cacheKey identifica una consulta sin distinguir mayúsculas ni espacios de
