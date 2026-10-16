@@ -71,8 +71,15 @@ type Generation struct {
 	Model    string
 
 	// PromptTokens y OutputTokens son los que informa el proveedor.
+	// OutputTokens incluye los de razonamiento, que se cobran como salida.
 	PromptTokens int
 	OutputTokens int
+
+	// EstimatedCostUSD es lo que habría costado la generación con la tarifa
+	// de lista del modelo en la capa de pago (ADR-0013). No es lo que se
+	// paga. Es nil si el modelo no tiene tarifa conocida: un costo
+	// desconocido no es un costo cero.
+	EstimatedCostUSD *float64
 }
 
 // Generator redacta texto a partir de instrucciones y contenido.

@@ -110,6 +110,7 @@ type generateResponse struct {
 	UsageMetadata struct {
 		PromptTokenCount     int `json:"promptTokenCount"`
 		CandidatesTokenCount int `json:"candidatesTokenCount"`
+		ThoughtsTokenCount   int `json:"thoughtsTokenCount"`
 	} `json:"usageMetadata"`
 }
 
@@ -122,7 +123,11 @@ func (g *Generator) generate(ctx context.Context, model string, payload []byte) 
 	if _, err := g.client.send(ctx, model, "generateContent", payload, &resp); err != nil {
 		return llmgw.Generation{}, err
 	}
-	g.client.tokens.Add(int64(resp.UsageMetadata.PromptTokenCount + resp.UsageMetadata.CandidatesTokenCount))
+	// Los tokens de razonamiento no forman parte de la respuesta, pero se
+	// cobran como salida.
+	usage := resp.UsageMetadata
+	output := usage.CandidatesTokenCount + usage.ThoughtsTokenCount
+	g.client.tokens.Add(int64(usage.PromptTokenCount + output))
 
 	if len(resp.Candidates) == 0 {
 		return llmgw.Generation{}, errors.New("el modelo no entregó una respuesta")
@@ -144,11 +149,16 @@ func (g *Generator) generate(ctx context.Context, model string, payload []byte) 
 		return llmgw.Generation{}, errors.New("el modelo entregó una respuesta vacía")
 	}
 
+	cost := estimateCost(model, usage.PromptTokenCount, output)
+	if cost == nil {
+		slog.WarnContext(ctx, "el modelo no tiene tarifa conocida; su costo queda sin estimar", "modelo", model)
+	}
 	return llmgw.Generation{
-		Text:         out,
-		Provider:     provider,
-		Model:        model,
-		PromptTokens: resp.UsageMetadata.PromptTokenCount,
-		OutputTokens: resp.UsageMetadata.CandidatesTokenCount,
+		Text:             out,
+		Provider:         provider,
+		Model:            model,
+		PromptTokens:     usage.PromptTokenCount,
+		OutputTokens:     output,
+		EstimatedCostUSD: cost,
 	}, nil
 }
