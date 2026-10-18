@@ -23,8 +23,9 @@ requests y los ADRs son parte de lo que el proyecto muestra.
 Lee esta sección con escepticismo: puede estar desactualizada. Verifica
 contra el código y contra `gh issue list`.
 
-- `v0.1.0` a `v0.4.0` completados. `v0.4.0` es la consulta con citas
-  reales. No hay un milestone siguiente definido.
+- `v0.1.0` a `v0.5.0` completados. `v0.4.0` es la consulta con citas
+  reales; `v0.5.0`, el costo y el uso medidos. No hay un milestone
+  siguiente definido.
 - El sistema es **un solo binario**, no cuatro servicios, y así seguirá
   hasta que se cumplan las condiciones de extracción de ADR-0005.
 - El gateway implementa la interfaz generada desde el contrato OpenAPI.
