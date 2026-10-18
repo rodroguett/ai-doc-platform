@@ -57,9 +57,13 @@ curl -s https://gateway-w46qaen3gq-uc.a.run.app/v1/queries \
   -d '{"question": "¿Con qué frecuencia se monitorea el agua subterránea?"}'
 ```
 
-La respuesta se redacta a partir de la RCA del proyecto "Continuidad
-Operacional Minera Tres Valles": cada afirmación lleva la marca de su cita, y
-cada cita trae el considerando y las páginas donde verificarla. La traza dice
+La respuesta se redacta a partir de tres documentos del proyecto
+"Continuidad Operacional Minera Tres Valles": su RCA y las dos solicitudes de
+aclaración (ICSARA) que el SEA le hizo al titular durante la evaluación. Cada
+afirmación lleva la marca de su cita, y cada cita trae el documento, el
+considerando o capítulo y las páginas donde verificarla. Al buscar, la RCA
+tiene prioridad: es lo vinculante
+([ADR-0015](docs/adr/0015-priorizar-el-documento-vinculante.md)). La traza dice
 qué modelo la redactó, con cuántos tokens y en cuánto tiempo; si dice
 `"degraded": true`, ningún modelo la redactó y lo que se entrega son los
 pasajes.

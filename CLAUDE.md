@@ -114,8 +114,12 @@ contra el código y contra `gh issue list`.
 - Antes de convertir una pregunta en vector, `rag` agrega a cada sigla del
   SEIA su nombre completo (`internal/rag/acronyms.go`). Solo afecta la
   búsqueda: la pregunta que ve el modelo no cambia.
-- En producción está ingerida la RCA "Continuidad Operacional Minera Tres
-  Valles" (colección `rca`). Con el fragmentador actual son 159 fragmentos.
+- En producción, colección `rca`, están ingeridos tres documentos del
+  proyecto "Continuidad Operacional Minera Tres Valles": la RCA (`tipo:
+  RCA`, 159 fragmentos) y los dos ICSARA (`tipo: ICSARA`, 168 y 119), con
+  los mismos metadatos que declara `eval/rca-tres-valles.json`. Volver a
+  ingerirlos los tres gasta unas 450 solicitudes de la cuota diaria de
+  embeddings de producción.
 - La calidad se mide con `make eval` contra `eval/rca-tres-valles.json`
   (23 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
   mínimo no separa las preguntas del dominio sin respuesta; lo que las
