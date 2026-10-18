@@ -18,6 +18,10 @@ En un sector fiscalizado, **la trazabilidad de la respuesta importa más que su
 fluidez**: una respuesta sin fuente verificable no sirve. Esa restricción es la
 que ordena la arquitectura.
 
+Los términos del dominio regulatorio (RCA, ICSARA, considerandos…) y los
+propios del proyecto (modo degradado, piso para citar…) están en el
+[glosario](docs/glosario.md).
+
 ## Estado
 
 En construcción. Este repositorio documenta el proceso, no solo el resultado:
