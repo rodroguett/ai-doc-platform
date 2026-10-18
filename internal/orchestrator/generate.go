@@ -78,6 +78,10 @@ type draft struct {
 	promptTokens int
 	outputTokens int
 	cost         *float64
+
+	// unverified son las cifras de la respuesta que no aparecen en los
+	// pasajes que cita su oración.
+	unverified []string
 }
 
 var (
@@ -121,6 +125,14 @@ func (s *Service) generate(ctx context.Context, question string, passages []rag.
 		return d, err
 	}
 	d.text, d.cited = text, cited
+
+	// Una cifra que no está en lo que cita su oración no descarta la
+	// respuesta, pero queda a la vista (ADR-0014).
+	if d.unverified = unverifiedFigures(text, pick(passages, cited)); len(d.unverified) > 0 {
+		slog.WarnContext(ctx, "la respuesta tiene cifras sin respaldo en sus citas",
+			"modelo", generation.Model, "cifras", d.unverified)
+		d.text += "\n\n" + figuresNotice(d.unverified)
+	}
 	return d, nil
 }
 
@@ -248,6 +260,12 @@ var reportingVerb = regexp.MustCompile(`(?i)\b(indican|señalan|señala|establec
 // capacidad es de 34 m3". Basta un verbo de ese tipo que no esté negado. La
 // frase conserva entonces sus marcas, que sustentan la parte afirmativa.
 func affirms(sentence string) bool {
+	return affirmation(sentence) >= 0
+}
+
+// affirmation devuelve dónde empieza el primer verbo no negado con que la
+// frase dice qué contienen los pasajes, o -1 si no hay ninguno.
+func affirmation(sentence string) int {
 	for _, loc := range reportingVerb.FindAllStringIndex(sentence, -1) {
 		before := strings.ToLower(strings.TrimRight(sentence[:loc[0]], " "))
 		negated := false
@@ -257,25 +275,47 @@ func affirms(sentence string) bool {
 			}
 		}
 		if !negated {
-			return true
+			return loc[0]
 		}
 	}
-	return false
+	return -1
 }
 
 // splitSentences divide el texto en oraciones, conservando el espacio que
 // las separa para poder volver a unirlas sin alterarlas. Corta después de un
-// punto seguido de un espacio y una mayúscula; partir en una abreviatura
-// como "D.S. N°4" es inofensivo aquí.
+// punto seguido de un espacio y una mayúscula, salvo que el punto cierre una
+// abreviatura: partir "el D.S. N° 90" dejaría la cifra en una oración que no
+// es la suya, y la verificación de cifras la buscaría en otros pasajes.
 func splitSentences(text string) []string {
 	var out []string
 	runes := []rune(text)
 	start := 0
 	for i := 0; i < len(runes)-2; i++ {
-		if runes[i] == '.' && runes[i+1] == ' ' && unicode.IsUpper(runes[i+2]) {
+		if runes[i] == '.' && runes[i+1] == ' ' && unicode.IsUpper(runes[i+2]) && !abbreviation(runes[start:i]) {
 			out = append(out, string(runes[start:i+2]))
 			start = i + 2
 		}
 	}
 	return append(out, string(runes[start:]))
+}
+
+// initials reconoce una sigla con puntos, sin el último: "D.S", "S.A", "N".
+var initials = regexp.MustCompile(`^(\p{Lu}\.)*\p{Lu}$`)
+
+// abbreviations son las que aparecen en textos regulatorios antes de un
+// número o un nombre propio.
+var abbreviations = map[string]bool{
+	"art": true, "arts": true, "inc": true, "núm": true, "pág": true, "págs": true,
+	"Art": true, "Arts": true, "Inc": true, "Núm": true, "Sr": true, "Sra": true, "Dr": true, "Dra": true,
+}
+
+// abbreviation indica si el texto termina en una abreviatura, a la que le
+// falta el punto que se está evaluando.
+func abbreviation(before []rune) bool {
+	fields := strings.Fields(string(before))
+	if len(fields) == 0 {
+		return false
+	}
+	last := fields[len(fields)-1]
+	return abbreviations[last] || initials.MatchString(last)
 }

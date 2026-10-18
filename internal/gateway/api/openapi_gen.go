@@ -258,6 +258,9 @@ type Trace struct {
 
 	// TraceId Identificador OpenTelemetry
 	TraceId string `json:"trace_id"`
+
+	// UnverifiedFigures Cifras de la respuesta que no aparecen en los pasajes que cita su oración (ADR-0014). La respuesta se entrega igual, con un aviso al final del texto. Falta si todas las cifras están en lo citado.
+	UnverifiedFigures *[]string `json:"unverified_figures,omitempty"`
 }
 
 // TraceCache defines model for Trace.Cache.

@@ -96,8 +96,12 @@ contra el código y contra `gh issue list`.
 - Cada módulo con esquema propio anota sus migraciones en su tabla de
   versiones: `rag` en `goose_db_version`, `orchestrator` en
   `orchestrator_goose_version` (`postgres.MigrateTable`).
-- La verificación de citas es de forma: no comprueba que el pasaje diga lo
-  que la respuesta afirma.
+- La verificación de citas comprueba la forma y las cifras, no el texto
+  (ADR-0014). Cada cifra de una oración con marcas debe estar en los
+  pasajes que esa oración cita (`internal/orchestrator/figures.go`); si no,
+  la respuesta se entrega con un aviso al final y la traza la lista en
+  `unverified_figures`. No detecta una cifra correcta en el lugar
+  equivocado ni errores sin cifras.
 - La búsqueda es exacta, sin índice sobre los vectores, a propósito.
 - Antes de convertir una pregunta en vector, `rag` agrega a cada sigla del
   SEIA su nombre completo (`internal/rag/acronyms.go`). Solo afecta la

@@ -213,6 +213,22 @@ func TestCreateQueryReportsGeneratedAnswer(t *testing.T) {
 	}
 }
 
+// Las cifras sin respaldo llegan en la traza; sin ellas, el campo se omite.
+func TestCreateQueryReportsUnverifiedFigures(t *testing.T) {
+	s := NewServer(Services{Queries: fixedQueries{answer: orchestrator.Answer{
+		ID: uuid.New(), Text: "El plazo es de 48 horas [1].",
+		Trace: orchestrator.Trace{ID: "0123456789abcdef0123456789abcdef", Provider: "gemini", Model: "m", Cache: orchestrator.CacheMiss,
+			UnverifiedFigures: []string{"48"}},
+	}}})
+
+	var resp api.QueryResponse
+	decodeJSON(t, postQuery(t, s, `{"question": "¿Qué plazo hay?"}`), http.StatusOK, &resp)
+
+	if resp.Trace.UnverifiedFigures == nil || len(*resp.Trace.UnverifiedFigures) != 1 || (*resp.Trace.UnverifiedFigures)[0] != "48" {
+		t.Errorf("got cifras sin respaldo %v", resp.Trace.UnverifiedFigures)
+	}
+}
+
 // Un costo desconocido no se informa como cero: el campo se omite.
 func TestCreateQueryOmitsUnknownCost(t *testing.T) {
 	s := NewServer(Services{Queries: fixedQueries{answer: orchestrator.Answer{

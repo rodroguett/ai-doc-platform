@@ -408,6 +408,13 @@ components:
           type: boolean
           description: Verdadero si se respondió por fallback
           default: false
+        unverified_figures:
+          type: array
+          items: { type: string }
+          description: >-
+            Cifras de la respuesta que no aparecen en los pasajes que cita su
+            oración (ADR-0014). La respuesta se entrega igual, con un aviso al
+            final del texto. Falta si todas las cifras están en lo citado.
         tokens:
           type: object
           properties:

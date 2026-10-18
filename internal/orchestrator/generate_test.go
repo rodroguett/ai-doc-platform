@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -49,8 +50,8 @@ type genFixture struct {
 // que responde text.
 func newGenFixture(text string) genFixture {
 	passages := []rag.Passage{
-		passage("Considerando 10.1", 89, 90, 0.82, "Plan de seguimiento de calidad del aire."),
-		passage("Considerando 8.1", 86, 86, 0.74, "Compromiso de monitoreo de calidad del aire."),
+		passage("Considerando 10.1", 89, 90, 0.82, "Plan de seguimiento de calidad del aire: MP-10 y MPS."),
+		passage("Considerando 8.1", 86, 86, 0.74, "Compromiso de monitoreo de calidad del aire; el estanque TK-65 tiene 34 m3."),
 		passage("Considerando 10.2", 90, 90, 0.70, "Plan de monitoreo de aguas subterráneas."),
 		passage("Considerando 10.3", 90, 91, 0.66, "Plan de monitoreo de aguas superficiales."),
 	}
@@ -95,7 +96,7 @@ func TestAnswerIsWrittenFromPassages(t *testing.T) {
 		t.Errorf("las instrucciones no exigen ceñirse a los pasajes: %q", req.System)
 	}
 	for _, want := range []string{
-		"[1] RCA Tres Valles — Considerando 10.1, págs. 89-90\nPlan de seguimiento de calidad del aire.",
+		"[1] RCA Tres Valles — Considerando 10.1, págs. 89-90\nPlan de seguimiento de calidad del aire: MP-10 y MPS.",
 		"[4] RCA Tres Valles — Considerando 10.3, págs. 90-91\n",
 		"Pregunta: ¿Qué parámetros de calidad del aire se monitorean?",
 	} {
@@ -310,13 +311,13 @@ func TestAnswerStopsWhenContextIsCancelled(t *testing.T) {
 // La traza completa lista todo lo recuperado, también lo que el modelo no
 // citó.
 func TestAnswerFullTraceKeepsUncitedPassages(t *testing.T) {
-	f := newGenFixture("Se monitorea MP-10 [2].")
+	f := newGenFixture("Se monitorea la calidad del aire [2].")
 	q := airQuestion
 	q.Trace = orchestrator.TraceFull
 
 	answer := ask(t, f.service, q)
 
-	if len(answer.Citations) != 1 || answer.Text != "Se monitorea MP-10 [1]." {
+	if len(answer.Citations) != 1 || answer.Text != "Se monitorea la calidad del aire [1]." {
 		t.Fatalf("got %d citas y %q", len(answer.Citations), answer.Text)
 	}
 	if len(answer.Trace.Retrieved) != 4 || answer.Trace.Retrieved[0].ChunkID != f.passages[0].ChunkID {
@@ -379,5 +380,40 @@ func TestAnswerIgnoresCitationsOnAbsenceClaims(t *testing.T) {
 				t.Errorf("got %q con %d citas (degradado %v),\nwant %q con %d", answer.Text, len(answer.Citations), answer.Trace.Degraded, tt.want, tt.citations)
 			}
 		})
+	}
+}
+
+// Una cifra que no está en lo que cita su oración no descarta la respuesta:
+// se entrega con un aviso, y la traza la declara (ADR-0014).
+func TestAnswerWarnsAboutUnverifiedFigures(t *testing.T) {
+	f := newGenFixture("El límite del MP-10 es de 150 ug/m3N [1].")
+
+	answer := ask(t, f.service, airQuestion)
+
+	if answer.Trace.Degraded || !strings.HasPrefix(answer.Text, "El límite del MP-10 es de 150 ug/m3N [1].") {
+		t.Fatalf("got degradado %v y %q", answer.Trace.Degraded, answer.Text)
+	}
+	if !strings.Contains(answer.Text, "Aviso: la cifra «150»") {
+		t.Errorf("la respuesta no avisa de la cifra: %q", answer.Text)
+	}
+	if !slices.Equal(answer.Trace.UnverifiedFigures, []string{"150"}) {
+		t.Errorf("got cifras sin respaldo %q, want [150]", answer.Trace.UnverifiedFigures)
+	}
+
+	// La misma pregunta desde la caché conserva el aviso.
+	cached := ask(t, f.service, airQuestion)
+	if cached.Trace.Cache != orchestrator.CacheHit || !slices.Equal(cached.Trace.UnverifiedFigures, []string{"150"}) || cached.Text != answer.Text {
+		t.Errorf("desde la caché: %+v, %q", cached.Trace, cached.Text)
+	}
+}
+
+// Una respuesta cuyas cifras están en lo citado no lleva aviso.
+func TestAnswerWithSupportedFiguresHasNoNotice(t *testing.T) {
+	f := newGenFixture("Se monitorea el MP-10 [1].")
+
+	answer := ask(t, f.service, airQuestion)
+
+	if answer.Text != "Se monitorea el MP-10 [1]." || answer.Trace.UnverifiedFigures != nil {
+		t.Errorf("got %q con cifras sin respaldo %q", answer.Text, answer.Trace.UnverifiedFigures)
 	}
 }
