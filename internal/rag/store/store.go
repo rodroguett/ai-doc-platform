@@ -422,6 +422,10 @@ func (s *Store) Search(ctx context.Context, vector []float32, model string, opts
 	// `<=>` es la distancia coseno de pgvector, entre 0 y 2. La similitud es
 	// su complemento; se acota a cero porque un puntaje negativo no dice
 	// nada útil a quien lee la cita.
+	//
+	// El orden resta a la distancia la ventaja del documento vinculante
+	// (ADR-0015), que equivale a sumarla a la similitud; el puntaje devuelto
+	// no la incluye.
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.id, c.document_id, d.source, c.section, c.heading, c.context, c.page_start, c.page_end, c.content,
 		       GREATEST(0, 1 - (c.embedding <=> $1::public.vector)) AS score
@@ -431,8 +435,11 @@ func (s *Store) Search(ctx context.Context, vector []float32, model string, opts
 		  AND c.embedding_model = $2
 		  AND d.status = 'ready'
 		  AND ($3::text IS NULL OR d.collection = $3)
-		ORDER BY c.embedding <=> $1::public.vector, c.id
-		LIMIT $4`, vectorLiteral(vector), model, collection, opts.TopK)
+		ORDER BY (c.embedding <=> $1::public.vector)
+		         - CASE WHEN d.metadata->>$5 = $6 THEN $7::float8 ELSE 0 END,
+		         c.id
+		LIMIT $4`, vectorLiteral(vector), model, collection, opts.TopK,
+		rag.MetadataType, rag.BindingType, rag.BindingBonus)
 	if err != nil {
 		return nil, fmt.Errorf("buscar los pasajes: %w", err)
 	}
