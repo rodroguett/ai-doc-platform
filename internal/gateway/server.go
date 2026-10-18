@@ -53,7 +53,11 @@ func (s *Server) routes() {
 	// ella, y no debe cambiar de ruta cuando la API cambie de versión.
 	s.mux.HandleFunc("GET /openapi.yaml", s.handleSpec)
 	s.mux.HandleFunc("GET /docs", s.handleDocs)
-	s.mux.Handle("GET /{$}", http.RedirectHandler("/docs", http.StatusFound))
+
+	// La demo es la entrada para quien llega sin saber qué es el proyecto;
+	// Swagger, para quien quiere la API.
+	s.mux.HandleFunc("GET /demo", s.handleDemo)
+	s.mux.Handle("GET /{$}", http.RedirectHandler("/demo", http.StatusFound))
 
 	strict := api.NewStrictHandlerWithOptions(&API{svc: s.svc, uploads: make(chan struct{}, 1)},
 		[]api.StrictMiddlewareFunc{s.requireWriteToken},

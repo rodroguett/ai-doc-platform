@@ -8,9 +8,12 @@ info:
     natural y cita el documento y la sección de donde sale cada
     afirmación. Toda respuesta trae, además, una traza de cómo se produjo.
 
-    El corpus de la demo es la Resolución de Calificación Ambiental del
-    proyecto "Continuidad Operacional Minera Tres Valles", un documento
-    público del Servicio de Evaluación Ambiental.
+    El corpus de la demo son tres documentos públicos del Servicio de
+    Evaluación Ambiental sobre el proyecto "Continuidad Operacional Minera
+    Tres Valles": su Resolución de Calificación Ambiental (`tipo: RCA`) y
+    las dos solicitudes de aclaración que la precedieron (`tipo: ICSARA`).
+    Para hacer preguntas desde el navegador, sin esta documentación, está
+    la página `/demo`.
 
     **Aviso sobre tus preguntas.** Cada pregunta nueva se envía a Gemini,
     de Google, en su capa gratuita. Sus condiciones permiten a Google usar

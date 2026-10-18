@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consulta con citas · RCA Tres Valles</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --surface: #ffffff; --text: #1d1d1b; --muted: #5d5d58;
+    --line: #e2e0d8; --accent: #2f5d50; --accent-soft: #e5efeb;
+    --warn: #8a4b00; --warn-soft: #fbf0df; --mark: #2f5d50;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151614; --surface: #1e201d; --text: #ecebe6; --muted: #a3a29b;
+      --line: #33352f; --accent: #8cc4b0; --accent-soft: #23302b;
+      --warn: #f0b867; --warn-soft: #33281a; --mark: #8cc4b0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  form { display: grid; gap: 12px; }
+  textarea {
+    width: 100%; min-height: 96px; padding: 12px; resize: vertical;
+    font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button {
+    font: inherit; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    padding: 6px 12px;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); padding: 8px 18px; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .examples button { font-size: .875rem; text-align: left; }
+  .notice { font-size: .8125rem; color: var(--muted); margin: 4px 0 0; }
+  section { margin-top: 28px; }
+  .answer {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px; white-space: pre-wrap;
+  }
+  .answer a { color: var(--mark); font-weight: 600; text-decoration: none; font-size: .8em; vertical-align: super; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; font-size: .8125rem; }
+  .badge { padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--text); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  h2 { font-size: 1rem; margin: 24px 0 8px; }
+  ol.citations { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .citation {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+  }
+  .citation:target { outline: 2px solid var(--accent); }
+  .citation header { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+  .citation .n { font-weight: 700; color: var(--mark); }
+  .citation .loc { font-weight: 600; }
+  .citation .src, .citation .score { color: var(--muted); font-size: .8125rem; }
+  .citation p { margin: 8px 0 0; font-size: .875rem; color: var(--muted); white-space: pre-wrap; }
+  .error { border-color: var(--warn); color: var(--warn); }
+  footer { margin-top: 40px; font-size: .8125rem; color: var(--muted); }
+  footer a, .lead a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Consulta con citas sobre una RCA</h1>
+  <p class="lead">
+    Pregunta en lenguaje natural sobre el proyecto "Continuidad Operacional Minera Tres Valles".
+    El corpus son tres documentos públicos del SEA: la Resolución de Calificación Ambiental y las dos
+    solicitudes de aclaración (ICSARA) que la precedieron. Cada afirmación de la respuesta lleva la
+    marca del pasaje que la sustenta.
+  </p>
+
+  <form id="ask">
+    <label for="question" class="notice">Tu pregunta</label>
+    <textarea id="question" maxlength="2000" required placeholder="¿Con qué frecuencia se entregan los informes de calidad del aire?"></textarea>
+    <div class="row">
+      <button class="primary" type="submit" id="submit">Preguntar</button>
+    </div>
+    <div class="row examples" id="examples" aria-label="Preguntas de ejemplo"></div>
+    <p class="notice">
+      Cada pregunta nueva se envía a Gemini, de Google, en su capa gratuita: Google puede usarla para
+      mejorar sus productos y personas pueden revisarla. No escribas datos personales ni información
+      que no deba salir de tu organización. Las respuestas las redacta un modelo: verifica cada
+      afirmación en su cita.
+    </p>
+  </form>
+
+  <section id="result" hidden aria-live="polite"></section>
+
+  <footer>
+    <a href="/docs">API (Swagger)</a> ·
+    <a href="https://github.com/rodroguett/ai-doc-platform">Código y decisiones de diseño</a>
+  </footer>
+</main>
+<script>
+"use strict";
+const examples = [
+  "¿Qué compromisos ambientales voluntarios contempla el proyecto?",
+  "¿Qué pidió el SEA sobre la contratación de mano de obra local y cómo quedó en la RCA?",
+  "¿Qué debe hacer el titular ante un sismo?",
+  "¿Cuál es la capacidad del estanque TK-65, que según el numeral 4.3.2 es de 4 m3?",
+];
+
+const form = document.getElementById("ask");
+const question = document.getElementById("question");
+const submit = document.getElementById("submit");
+const result = document.getElementById("result");
+
+for (const text of examples) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = text;
+  b.addEventListener("click", () => { question.value = text; form.requestSubmit(); });
+  document.getElementById("examples").append(b);
+}
+
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+  for (const c of children) node.append(c);
+  return node;
+}
+
+// El texto de la respuesta se inserta como texto: las marcas [n] se
+// convierten en enlaces a su cita, y nada de lo que llega se interpreta
+// como HTML.
+function renderAnswer(text) {
+  const box = el("div", { class: "answer" });
+  const parts = text.split(/(\[\d+\])/);
+  for (const part of parts) {
+    const m = /^\[(\d+)\]$/.exec(part);
+    if (m) {
+      box.append(el("a", { href: "#cita-" + m[1], title: "Ver la cita " + m[1] }, "[" + m[1] + "]"));
+    } else {
+      box.append(document.createTextNode(part));
+    }
+  }
+  return box;
+}
+
+function render(data) {
+  result.replaceChildren();
+  const trace = data.trace || {};
+  result.append(renderAnswer(data.answer || ""));
+
+  const badges = el("div", { class: "badges" });
+  if (trace.degraded) badges.append(el("span", { class: "badge warn" }, "Sin texto redactado: se muestran los pasajes"));
+  else if (trace.model && trace.model !== "none") badges.append(el("span", { class: "badge" }, "Redactada por " + trace.model));
+  if (trace.unverified_figures && trace.unverified_figures.length) {
+    badges.append(el("span", { class: "badge warn" }, "Cifras sin respaldo en sus citas: " + trace.unverified_figures.join(", ")));
+  }
+  if (trace.cache === "hit") badges.append(el("span", { class: "badge" }, "Desde la caché"));
+  if (typeof trace.estimated_cost_usd === "number") {
+    badges.append(el("span", { class: "badge", title: "Lo que habría costado a tarifa de lista; el servicio corre en capas gratuitas" },
+      "Costo estimado: " + trace.estimated_cost_usd.toFixed(5) + " USD"));
+  }
+  if (trace.latency_ms && trace.latency_ms.total != null) badges.append(el("span", { class: "badge" }, trace.latency_ms.total + " ms"));
+  result.append(badges);
+
+  const citations = data.citations || [];
+  if (citations.length) {
+    result.append(el("h2", {}, "Citas"));
+    const list = el("ol", { class: "citations" });
+    citations.forEach((c, i) => {
+      const n = i + 1;
+      list.append(el("li", { class: "citation", id: "cita-" + n },
+        el("header", {},
+          el("span", { class: "n" }, "[" + n + "]"),
+          el("span", { class: "loc" }, c.locator || ""),
+          el("span", { class: "src" }, c.source || ""),
+          el("span", { class: "score" }, "similitud " + Number(c.score).toFixed(3))),
+        el("p", {}, c.excerpt || "")));
+    });
+    result.append(list);
+  }
+  result.hidden = false;
+}
+
+function renderError(message) {
+  result.replaceChildren(el("div", { class: "answer error" }, message));
+  result.hidden = false;
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const text = question.value.trim();
+  if (text.length < 3) { renderError("La pregunta debe tener al menos 3 caracteres."); return; }
+  submit.disabled = true;
+  submit.textContent = "Consultando…";
+  // La pregunta queda en la dirección, para compartirla.
+  history.replaceState(null, "", "?q=" + encodeURIComponent(text));
+  try {
+    const res = await fetch("/v1/queries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: text, collection: "rca" }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      renderError((body.title || "Error " + res.status) + (body.detail ? ": " + body.detail : ""));
+      return;
+    }
+    render(body);
+  } catch (e) {
+    renderError("No se pudo contactar al servicio. Reintenta en unos segundos.");
+  } finally {
+    submit.disabled = false;
+    submit.textContent = "Preguntar";
+  }
+});
+
+// Una pregunta en la dirección (/demo?q=…) se envía al abrir la página.
+const initial = new URLSearchParams(location.search).get("q");
+if (initial) { question.value = initial; form.requestSubmit(); }
+</script>
+</body>
+</html>

@@ -97,6 +97,7 @@ func TestReadsArePublic(t *testing.T) {
 		"/v1/documents/" + job.ResourceId.String(),
 		"/v1/jobs/" + job.Id.String(),
 		"/docs",
+		"/demo",
 		"/openapi.yaml",
 	} {
 		// Sin encabezado Authorization.
