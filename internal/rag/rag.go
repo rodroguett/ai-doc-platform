@@ -37,6 +37,20 @@ var (
 	ErrNoTextLayer = fmt.Errorf("%w: el documento no tiene capa de texto; los documentos escaneados no se admiten", ErrInvalidInput)
 )
 
+// Prioridad del documento vinculante (ADR-0015). Al ordenar los pasajes,
+// los de un documento cuyo metadato MetadataType vale BindingType suman
+// BindingBonus a su similitud. Solo cambia el orden: el puntaje que se
+// informa sigue siendo la similitud.
+//
+// La RCA es lo que el titular debe cumplir; un ICSARA, una solicitud que
+// pudo acogerse o no. Sin esta ventaja, los ICSARA desplazaban a la RCA en
+// las preguntas sobre obligaciones, porque tratan los mismos temas.
+const (
+	MetadataType = "tipo"
+	BindingType  = "RCA"
+	BindingBonus = 0.03
+)
+
 // SearchOptions acota una búsqueda de pasajes.
 type SearchOptions struct {
 	Collection string // vacía: todas las colecciones

@@ -28,9 +28,18 @@ var queryVector = at(0)
 // vectores dados, y devuelve los identificadores de sus fragmentos.
 func ingestWith(t *testing.T, s *store.Store, collection, source, model string, angles ...float64) (uuid.UUID, []uuid.UUID) {
 	t.Helper()
+	return ingestTyped(t, s, collection, source, "", model, angles...)
+}
+
+// ingestTyped es ingestWith con el tipo de documento en sus metadatos.
+func ingestTyped(t *testing.T, s *store.Store, collection, source, kind, model string, angles ...float64) (uuid.UUID, []uuid.UUID) {
+	t.Helper()
 	ctx := context.Background()
 	doc, job := newDocument(source + collection)
 	doc.Source, doc.Collection = source, collection
+	if kind != "" {
+		doc.Metadata[rag.MetadataType] = kind
+	}
 
 	chunks := newChunks(len(angles))
 	embeddings := make([]rag.ChunkEmbedding, len(angles))
@@ -171,5 +180,30 @@ func TestSearchEmptyCorpus(t *testing.T) {
 	s := newStore(t)
 	if got := search(t, s, "modelo-a", rag.SearchOptions{TopK: 5}); len(got) != 0 {
 		t.Errorf("got %d pasajes de un corpus vacío", len(got))
+	}
+}
+
+// El documento vinculante gana el orden cuando su similitud está a menos de
+// la ventaja de otro, y lo pierde cuando está más lejos (ADR-0015). El
+// puntaje informado no incluye la ventaja.
+func TestSearchPrioritizesBindingDocument(t *testing.T) {
+	s := newStore(t)
+	// cos 30° = 0,866; cos 28° = 0,883 (0,017 más); cos 25° = 0,906 (0,040 más).
+	_, rca := ingestTyped(t, s, "rca", "RCA Tres Valles", rag.BindingType, "modelo-a", 30)
+	_, icsara := ingestTyped(t, s, "rca", "ICSARA Tres Valles", "ICSARA", "modelo-a", 28, 25)
+
+	got := search(t, s, "modelo-a", rag.SearchOptions{TopK: 10})
+
+	want := []uuid.UUID{icsara[1], rca[0], icsara[0]}
+	if len(got) != 3 {
+		t.Fatalf("got %d pasajes, want 3", len(got))
+	}
+	for i, p := range got {
+		if p.ChunkID != want[i] {
+			t.Errorf("posición %d: got %q", i, p.Text)
+		}
+	}
+	if math.Abs(got[1].Score-math.Sqrt(3)/2) > 1e-4 {
+		t.Errorf("el puntaje de la RCA incluye la ventaja: %.4f", got[1].Score)
 	}
 }
