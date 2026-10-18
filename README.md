@@ -275,6 +275,7 @@ bien no es un registro, es publicidad.
 - [ADR-0011](docs/adr/0011-recuperacion-y-modo-degradado.md) — Recuperar con búsqueda exacta y responder sin generación como modo degradado
 - [ADR-0012](docs/adr/0012-generacion-gemini-flash-lite.md) — Redactar las respuestas con Gemini Flash-Lite en su capa gratuita
 - [ADR-0013](docs/adr/0013-costo-estimado-por-consulta.md) — Registrar cada consulta con su costo estimado a tarifa de lista
+- [ADR-0014](docs/adr/0014-verificar-cifras-de-las-citas.md) — Verificar que las cifras de una respuesta estén en lo que cita, y avisar si no
 
 ## Contribuir
 
