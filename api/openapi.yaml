@@ -340,7 +340,11 @@ components:
         filters:
           type: object
           additionalProperties: true
-          description: Filtros sobre los metadatos del documento
+          description: >-
+            Restringe la búsqueda a los documentos cuyos metadatos contienen
+            todos estos pares clave-valor. Los valores deben ser texto, número
+            o booleano. Por ejemplo, `{"tipo": "RCA"}` busca solo en la RCA.
+          examples: [{tipo: RCA}]
         trace:
           type: string
           enum: [summary, full]
@@ -394,7 +398,9 @@ components:
       properties:
         trace_id:
           type: string
-          description: Identificador OpenTelemetry
+          description: >-
+            Identificador de la consulta, 32 caracteres hexadecimales. Es el
+            mismo del encabezado `X-Trace-Id` y del registro de uso.
         provider:
           type: string
           description: Proveedor que redactó la respuesta, o `none` si ninguno

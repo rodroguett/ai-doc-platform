@@ -207,3 +207,32 @@ func TestSearchPrioritizesBindingDocument(t *testing.T) {
 		t.Errorf("el puntaje de la RCA incluye la ventaja: %.4f", got[1].Score)
 	}
 }
+
+// Los filtros restringen la búsqueda a los documentos cuyos metadatos
+// contienen esos pares.
+func TestSearchFiltersByMetadata(t *testing.T) {
+	s := newStore(t)
+	_, rca := ingestTyped(t, s, "rca", "RCA Tres Valles", "RCA", "modelo-a", 30)
+	_, icsara := ingestTyped(t, s, "rca", "ICSARA Tres Valles", "ICSARA", "modelo-a", 10)
+
+	for name, tt := range map[string]struct {
+		filters map[string]any
+		want    []uuid.UUID
+	}{
+		"sin filtros":      {nil, []uuid.UUID{icsara[0], rca[0]}},
+		"un tipo":          {map[string]any{"tipo": "RCA"}, []uuid.UUID{rca[0]}},
+		"dos claves":       {map[string]any{"tipo": "ICSARA", "titular": "Minera Loma Seca SpA"}, []uuid.UUID{icsara[0]}},
+		"valor que no hay": {map[string]any{"tipo": "Adenda"}, nil},
+	} {
+		got := search(t, s, "modelo-a", rag.SearchOptions{TopK: 10, Filters: tt.filters})
+		if len(got) != len(tt.want) {
+			t.Errorf("%s: got %d pasajes, want %d", name, len(got), len(tt.want))
+			continue
+		}
+		for i, p := range got {
+			if p.ChunkID != tt.want[i] {
+				t.Errorf("%s: posición %d: got %q", name, i, p.Text)
+			}
+		}
+	}
+}

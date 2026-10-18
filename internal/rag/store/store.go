@@ -3,6 +3,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -418,6 +419,17 @@ func (s *Store) Search(ctx context.Context, vector []float32, model string, opts
 	if opts.Collection != "" {
 		collection = &opts.Collection
 	}
+	// Los filtros se comparan por contención: el documento debe tener al
+	// menos esos pares en sus metadatos.
+	var filters *string
+	if len(opts.Filters) > 0 {
+		raw, err := json.Marshal(opts.Filters)
+		if err != nil {
+			return nil, fmt.Errorf("serializar los filtros: %w", err)
+		}
+		s := string(raw)
+		filters = &s
+	}
 
 	// `<=>` es la distancia coseno de pgvector, entre 0 y 2. La similitud es
 	// su complemento; se acota a cero porque un puntaje negativo no dice
@@ -435,11 +447,12 @@ func (s *Store) Search(ctx context.Context, vector []float32, model string, opts
 		  AND c.embedding_model = $2
 		  AND d.status = 'ready'
 		  AND ($3::text IS NULL OR d.collection = $3)
+		  AND ($8::jsonb IS NULL OR d.metadata @> $8::jsonb)
 		ORDER BY (c.embedding <=> $1::public.vector)
 		         - CASE WHEN d.metadata->>$5 = $6 THEN $7::float8 ELSE 0 END,
 		         c.id
 		LIMIT $4`, vectorLiteral(vector), model, collection, opts.TopK,
-		rag.MetadataType, rag.BindingType, rag.BindingBonus)
+		rag.MetadataType, rag.BindingType, rag.BindingBonus, filters)
 	if err != nil {
 		return nil, fmt.Errorf("buscar los pasajes: %w", err)
 	}

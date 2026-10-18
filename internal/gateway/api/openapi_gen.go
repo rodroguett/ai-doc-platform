@@ -204,7 +204,9 @@ type QueryRequest struct {
 	// Collection Restringe la búsqueda a una colección
 	Collection *string `json:"collection,omitempty"`
 
-	// Filters Filtros sobre los metadatos del documento
+	// Filters Restringe la búsqueda a los documentos cuyos metadatos contienen todos estos pares clave-valor. Los valores deben ser texto, número o booleano. Por ejemplo, `{"tipo": "RCA"}` busca solo en la RCA.
+	//
+	// Examples: {"tipo":"RCA"}
 	Filters  *map[string]interface{} `json:"filters,omitempty"`
 	Question string                  `json:"question"`
 	TopK     *int                    `json:"top_k,omitempty"`
@@ -256,7 +258,7 @@ type Trace struct {
 		Prompt     *int `json:"prompt,omitempty"`
 	} `json:"tokens,omitempty"`
 
-	// TraceId Identificador OpenTelemetry
+	// TraceId Identificador de la consulta, 32 caracteres hexadecimales. Es el mismo del encabezado `X-Trace-Id` y del registro de uso.
 	TraceId string `json:"trace_id"`
 
 	// UnverifiedFigures Cifras de la respuesta que no aparecen en los pasajes que cita su oración (ADR-0014). La respuesta se entrega igual, con un aviso al final del texto. Falta si todas las cifras están en lo citado.

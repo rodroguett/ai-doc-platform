@@ -370,3 +370,43 @@ func TestAnswerHasNoCitationsWhenNothingIsRelevant(t *testing.T) {
 		t.Errorf("got respuesta %q", answer.Text)
 	}
 }
+
+// Los filtros llegan a la búsqueda, y la misma pregunta con otros filtros
+// es otra consulta: no sale de la caché.
+func TestAnswerAppliesFilters(t *testing.T) {
+	f := newFixture(0, passage("Considerando 10.1", 89, 90, 0.82, "Plan de seguimiento."))
+	q := orchestrator.Query{Question: "¿Qué plan de seguimiento hay?", Filters: map[string]any{"tipo": "RCA"}}
+
+	ask(t, f.service, q)
+	ask(t, f.service, q)
+	q.Filters = map[string]any{"tipo": "ICSARA"}
+	ask(t, f.service, q)
+	q.Filters = nil
+	ask(t, f.service, q)
+
+	if len(f.retriever.searches) != 3 {
+		t.Fatalf("got %d búsquedas, want 3: la repetida sale de la caché", len(f.retriever.searches))
+	}
+	if got := f.retriever.searches[0].opts.Filters; got["tipo"] != "RCA" {
+		t.Errorf("got filtros %v, want tipo RCA", got)
+	}
+	if got := f.retriever.searches[2].opts.Filters; len(got) != 0 {
+		t.Errorf("got filtros %v, want ninguno", got)
+	}
+}
+
+func TestQueryRejectsCompositeFilters(t *testing.T) {
+	for name, value := range map[string]any{
+		"objeto": map[string]any{"es": "RCA"},
+		"lista":  []any{"RCA", "ICSARA"},
+		"nulo":   nil,
+	} {
+		_, err := orchestrator.Query{Question: "¿Qué pozos?", Filters: map[string]any{"tipo": value}}.Normalize()
+		if !errors.Is(err, orchestrator.ErrInvalidInput) {
+			t.Errorf("%s: got %v, want ErrInvalidInput", name, err)
+		}
+	}
+	if _, err := (orchestrator.Query{Question: "¿Qué pozos?", Filters: map[string]any{"tipo": "RCA", "año": 2026.0, "vigente": true}}).Normalize(); err != nil {
+		t.Errorf("filtros simples: %v", err)
+	}
+}
