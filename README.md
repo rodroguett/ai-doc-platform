@@ -281,6 +281,7 @@ bien no es un registro, es publicidad.
 - [ADR-0013](docs/adr/0013-costo-estimado-por-consulta.md) — Registrar cada consulta con su costo estimado a tarifa de lista
 - [ADR-0014](docs/adr/0014-verificar-cifras-de-las-citas.md) — Verificar que las cifras de una respuesta estén en lo que cita, y avisar si no
 - [ADR-0015](docs/adr/0015-priorizar-el-documento-vinculante.md) — Priorizar el documento vinculante al ordenar los pasajes
+- [ADR-0016](docs/adr/0016-no-combinar-vectores-y-texto.md) — No combinar la búsqueda por vectores con la de texto, por ahora
 
 ## Contribuir
 
