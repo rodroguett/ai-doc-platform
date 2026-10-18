@@ -277,6 +277,11 @@ registro.
 **El README debe describir el sistema que existe**, no el planificado. Si un
 cambio hace que deje de ser cierto, se corrige en el mismo pull request.
 
+**El glosario (`docs/glosario.md`) repite valores del código**: el piso para
+citar, la prioridad de la RCA, el tope diario, la duración de la caché, los
+modelos. Un cambio a cualquiera de ellos actualiza el glosario en el mismo
+pull request. Un término nuevo del dominio o del proyecto se agrega ahí.
+
 ## Presupuesto
 
 El demo no debe generar ningún cobro; el tope acordado es un dólar. Cloud
