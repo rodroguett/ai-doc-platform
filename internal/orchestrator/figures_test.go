@@ -103,6 +103,11 @@ func TestUnverifiedFigures(t *testing.T) {
 			"El tiempo de retención no debe exceder las 72 horas [1].",
 			cite("el tiempo de retención no exceda las 48 horas"), []string{"72"},
 		},
+		// Medido en la evaluación con tres documentos (#85).
+		"negación con tampoco": {
+			"Tampoco mencionan los numerales 8.2 y 8.3, sino que se refieren a los planes 10.2 y 10.3 [1].",
+			cite("10.2. Plan de monitoreo de aguas subterráneas. 10.3. Plan de aguas superficiales."), nil,
+		},
 		"oración sin marcas": {
 			"Los pasajes no contienen información sobre una capacidad de 4 m3. El estanque tiene 34 m3 [1].",
 			cite("con capacidad de 34 m3"), nil,

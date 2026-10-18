@@ -57,10 +57,11 @@ func normalizeFigure(f string) string {
 
 // negatedClause reconoce una cláusula que niega lo que dicen los pasajes:
 // "sin mencionar una capacidad de 4 m3", "ni hacer referencia al numeral
-// 4.3.2", "no indican que sea de 4 m3". Llega hasta la coma, el punto y coma
+// 4.3.2", "no indican que sea de 4 m3", "tampoco mencionan los numerales
+// 8.2 y 8.3". Llega hasta la coma, el punto y coma
 // o el final de la oración: lo que sigue a "…, sino que señalan" es una
 // afirmación y se verifica.
-var negatedClause = regexp.MustCompile(`(?i)\b(?:sin|no|ni)\s+(?:se\s+)?(?:mencion|hac\w*\s+referencia|indic|señal|contien|conten|inclu|precis|especific|establec|detall|confirm|refier|alud)\w*[^,;]*`)
+var negatedClause = regexp.MustCompile(`(?i)\b(?:sin|no|ni|tampoco)\s+(?:se\s+)?(?:mencion|hac\w*\s+referencia|indic|señal|contien|conten|inclu|precis|especific|establec|detall|confirm|refier|alud)\w*[^,;]*`)
 
 // unverifiedFigures devuelve las cifras de la respuesta que no aparecen en
 // los pasajes que cita la oración donde están (ADR-0014). text ya tiene las
