@@ -123,6 +123,11 @@ type Trace struct {
 	// redactó la respuesta: se entregan los pasajes sin texto generado.
 	Degraded bool
 
+	// UnverifiedFigures son las cifras de la respuesta que no aparecen en
+	// los pasajes que cita su oración (ADR-0014). La respuesta se entrega
+	// igual, con un aviso.
+	UnverifiedFigures []string
+
 	Tokens TokenUsage
 
 	// EstimatedCostUSD es lo que habría costado la consulta con la tarifa

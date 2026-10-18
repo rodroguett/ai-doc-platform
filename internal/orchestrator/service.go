@@ -204,6 +204,7 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 		// consulta no consumió.
 		answer.Text, cited = written.text, pick(passages, written.cited)
 		answer.Trace.Provider, answer.Trace.Model = written.provider, written.model
+		answer.Trace.UnverifiedFigures = written.unverified
 
 	case s.generator == nil:
 		answer.Text, answer.Trace.Degraded, outcome = degradedText(len(passages)), true, OutcomeDegraded
@@ -218,6 +219,7 @@ func (s *Service) Answer(ctx context.Context, q Query) (Answer, error) {
 			s.remember(key, &d)
 			answer.Text, cited = d.text, pick(passages, d.cited)
 			answer.Trace.Provider, answer.Trace.Model = d.provider, d.model
+			answer.Trace.UnverifiedFigures = d.unverified
 		case ctx.Err() != nil:
 			return Answer{}, ctx.Err()
 		case errors.Is(err, errNoCitations):

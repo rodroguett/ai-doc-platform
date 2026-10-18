@@ -83,8 +83,8 @@ func newUsageFixture(text string, cost *float64) usageFixture {
 	f := usageFixture{
 		generator: &fakeGenerator{text: text, cost: cost},
 		retriever: &fakeRetriever{passages: []rag.Passage{
-			passage("Considerando 10.1", 89, 90, 0.82, "Plan de seguimiento de calidad del aire."),
-			passage("Considerando 8.1", 86, 86, 0.74, "Compromiso de monitoreo de calidad del aire."),
+			passage("Considerando 10.1", 89, 90, 0.82, "Plan de seguimiento de calidad del aire: MP-10 y MPS."),
+			passage("Considerando 8.1", 86, 86, 0.74, "Compromiso de monitoreo de calidad del aire; el estanque TK-65 tiene 34 m3."),
 		}},
 		recorder: &fakeRecorder{},
 		clock:    time.Date(2026, 10, 15, 21, 30, 0, 0, time.UTC),

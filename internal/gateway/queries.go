@@ -77,6 +77,9 @@ func toTrace(t orchestrator.Trace) api.Trace {
 
 		EstimatedCostUsd: t.EstimatedCostUSD,
 	}
+	if len(t.UnverifiedFigures) > 0 {
+		out.UnverifiedFigures = &t.UnverifiedFigures
+	}
 	out.Tokens = &struct {
 		Completion *int `json:"completion,omitempty"`
 		Prompt     *int `json:"prompt,omitempty"`
