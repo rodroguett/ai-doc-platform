@@ -90,6 +90,19 @@ func TestUnverifiedFigures(t *testing.T) {
 			"Los pasajes no indican que la capacidad sea de 4 m3, sino que señalan que tiene 43 m3 [1].",
 			cite("con capacidad de 34 m3"), []string{"43"},
 		},
+		// Medido en producción tras #78.
+		"premisa negada al final de una afirmación": {
+			"Los pasajes señalan que el estanque TK-65 tiene una capacidad de 34 m3, sin mencionar ninguna capacidad de 4 m3 ni hacer referencia a un numeral 4.3.2 [1].",
+			cite("Estanque TK-65 de 34 m3."), nil,
+		},
+		"cifra afirmada después de una negación": {
+			"El plazo no se precisa para el informe, sino que es de 72 horas [1].",
+			cite("plazo de 24 horas"), []string{"72"},
+		},
+		"una afirmación con «no» que no niega a los pasajes": {
+			"El tiempo de retención no debe exceder las 72 horas [1].",
+			cite("el tiempo de retención no exceda las 48 horas"), []string{"72"},
+		},
 		"oración sin marcas": {
 			"Los pasajes no contienen información sobre una capacidad de 4 m3. El estanque tiene 34 m3 [1].",
 			cite("con capacidad de 34 m3"), nil,

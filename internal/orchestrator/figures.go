@@ -55,14 +55,23 @@ func normalizeFigure(f string) string {
 	return strings.Join(parts, ".")
 }
 
+// negatedClause reconoce una cláusula que niega lo que dicen los pasajes:
+// "sin mencionar una capacidad de 4 m3", "ni hacer referencia al numeral
+// 4.3.2", "no indican que sea de 4 m3". Llega hasta la coma, el punto y coma
+// o el final de la oración: lo que sigue a "…, sino que señalan" es una
+// afirmación y se verifica.
+var negatedClause = regexp.MustCompile(`(?i)\b(?:sin|no|ni)\s+(?:se\s+)?(?:mencion|hac\w*\s+referencia|indic|señal|contien|conten|inclu|precis|especific|establec|detall|confirm|refier|alud)\w*[^,;]*`)
+
 // unverifiedFigures devuelve las cifras de la respuesta que no aparecen en
 // los pasajes que cita la oración donde están (ADR-0014). text ya tiene las
 // marcas renumeradas: [1] es cited[0].
 //
-// Solo se revisan las oraciones con marcas. En una que niega una premisa de
-// la pregunta y además afirma algo ("no indican 4 m3, sino que señalan 34
-// m3 [1]"), se revisa solo lo que viene desde la afirmación: la cifra negada
-// es la de la pregunta, y no tiene por qué estar en los pasajes.
+// Solo se revisan las oraciones con marcas, y en ellas no se revisan las
+// cláusulas que niegan lo que dicen los pasajes: la cifra negada viene de la
+// pregunta y no tiene por qué estar en ellos. El modelo niega de dos formas,
+// y las dos se midieron: empezando por la ausencia ("los pasajes no indican
+// 4 m3, sino que señalan 34 m3 [1]") o agregándola a una afirmación
+// ("tiene 34 m3, sin mencionar una capacidad de 4 m3 [1]").
 func unverifiedFigures(text string, cited []rag.Passage) []string {
 	var out []string
 	seen := map[string]bool{}
@@ -91,6 +100,7 @@ func unverifiedFigures(text string, cited []rag.Passage) []string {
 			available[normalizeFigure(f)] = true
 		}
 
+		claim = negatedClause.ReplaceAllString(claim, "")
 		for _, f := range figures(citationMark.ReplaceAllString(claim, "")) {
 			if n := normalizeFigure(f); !available[n] && !seen[n] {
 				seen[n] = true
