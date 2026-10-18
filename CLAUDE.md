@@ -107,7 +107,10 @@ contra el código y contra `gh issue list`.
   la respuesta se entrega con un aviso al final y la traza la lista en
   `unverified_figures`. No detecta una cifra correcta en el lugar
   equivocado ni errores sin cifras.
-- La búsqueda es exacta, sin índice sobre los vectores, a propósito.
+- La búsqueda es exacta, sin índice sobre los vectores, a propósito. Al
+  ordenar, los pasajes de un documento con metadato `tipo: RCA` suman 0,03
+  a su similitud (ADR-0015); el puntaje informado y el piso para citar no
+  la incluyen. Una RCA subida sin `tipo` pierde esa prioridad.
 - Antes de convertir una pregunta en vector, `rag` agrega a cada sigla del
   SEIA su nombre completo (`internal/rag/acronyms.go`). Solo afecta la
   búsqueda: la pregunta que ve el modelo no cambia.

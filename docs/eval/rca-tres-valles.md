@@ -14,43 +14,43 @@ Cada pregunta mide un comportamiento distinto. Las de origen 'autor' las escribi
 
 | Medida | Valor |
 |---|---|
-| Preguntas con todo lo esperado entre los primeros 5 pasajes | 15 de 22 |
-| Ídem, y además con puntaje suficiente para citarse | 15 de 22 |
-| Grupos de secciones esperadas recuperados entre los primeros 5 | 30 de 41 |
-| Ídem entre los primeros 10 | 37 de 41 |
+| Preguntas con todo lo esperado entre los primeros 5 pasajes | 19 de 22 |
+| Ídem, y además con puntaje suficiente para citarse | 19 de 22 |
+| Grupos de secciones esperadas recuperados entre los primeros 5 | 38 de 41 |
+| Ídem entre los primeros 10 | 40 de 41 |
 | Preguntas sin respuesta en el documento que recibirían citas | 3 de 4 |
 | Respuestas que citan una sección que no corresponde | 0 de 2 |
-| Respuestas redactadas con cifras sin respaldo en sus citas | 1 de 22 |
+| Respuestas redactadas con cifras sin respaldo en sus citas | 0 de 22 |
 
 ## Por pregunta
 
 | Pregunta | Origen | Esperado | Recuperado (primeros 5) | Resultado |
 |---|---|---|---|---|
-| `aire-parametros` | autor | Considerando 10.1 | Considerando 10.1 (0.725)<br>Considerando 8.1 (0.680)<br>icsara2:Capítulo II 1.15 (0.668)<br>Considerando 10.2 (0.665)<br>Considerando 10.3 (0.664) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `aire-parametros` | autor | Considerando 10.1 | Considerando 10.1 (0.725)<br>Considerando 8.1 (0.680)<br>Considerando 10.2 (0.665)<br>Considerando 10.3 (0.664)<br>Considerando 7.1 (0.654) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
 | `informes-frecuencia` | autor | Considerando 10.1 o Considerando 8.1 | Considerando 10.1 (0.710)<br>Considerando 10.2 (0.672)<br>Considerando 15 (0.672)<br>Considerando 8.1 (0.667)<br>Considerando 7.1 (0.666) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `vida-util` | autor | Considerando 4.3.3 | Considerando 4.3.3 (0.794)<br>icsara2:Capítulo II 1.9 (0.742)<br>Considerando 4.4.4 (0.732)<br>icsara:Capítulo I 5.6 (0.724)<br>Considerando 4.3 (0.724) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `permisos-sectoriales` | autor | Considerando 6.1; Considerando 6.2.1; Considerando 6.2.2 | Considerando 6.2 (0.815)<br>Considerando 6.2.1 (0.813)<br>Considerando 6.1 (0.809)<br>icsara2:Capítulo III 1 (0.800)<br>icsara:Capítulo III 3 (0.791) | 2/3 grupos en los primeros 5 (3/3 en 10), 2 citables |
+| `vida-util` | autor | Considerando 4.3.3 | Considerando 4.3.3 (0.794)<br>Considerando 4.4.4 (0.732)<br>Considerando 4.3 (0.724)<br>Considerando 4.4.2 (0.717)<br>icsara2:Capítulo II 1.9 (0.742) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `permisos-sectoriales` | autor | Considerando 6.1; Considerando 6.2.1; Considerando 6.2.2 | Considerando 6.2 (0.815)<br>Considerando 6.2.1 (0.813)<br>Considerando 6.1 (0.809)<br>Considerando 6.2.1 (0.789)<br>Considerando 6.2.2 (0.788) | 3/3 grupos en los primeros 5 (3/3 en 10), 3 citables |
 | `permisos-sectoriales-cuales` | autor | Considerando 6.1; Considerando 6.2.1; Considerando 6.2.2 | Considerando 6.2 (0.790)<br>Considerando 6.1 (0.780)<br>Considerando 6.2.1 (0.775)<br>Considerando 6.2.1 (0.771)<br>Considerando 6.2.2 (0.764) | 3/3 grupos en los primeros 5 (3/3 en 10), 3 citables |
-| `sismo` | autor | Considerando 12.1 | Considerando 12.1 (0.697)<br>Considerando 12.1 (0.657)<br>Considerando 12.3 (0.649)<br>icsara2:Capítulo III 1.1 (0.629)<br>icsara:Capítulo V 1.2 (0.628) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `inversion` | autor | Considerando 4.1 | Considerando 4.1 (0.720)<br>Considerando 9 (0.664)<br>Considerando 4.4.1 (0.663)<br>icsara2:Capítulo I 1.2 (0.662)<br>Considerando 4.4.4 (0.661) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `compromisos-voluntarios` | autor | Considerando 8.1; Considerando 8.2; Considerando 8.3; Considerando 8.4 | icsara:Capítulo VI 1 (0.789)<br>Considerando 8.1 (0.783)<br>icsara2:Capítulo VI 1 (0.779)<br>icsara2:Capítulo VI 2 (0.776)<br>icsara2:Capítulo VI 3 (0.770) | 1/4 grupos en los primeros 5 (4/4 en 10), 1 citables |
-| `compromisos-voluntarios-cuales` | autor | Considerando 8.1; Considerando 8.2; Considerando 8.3; Considerando 8.4 | Considerando 8.1 (0.783)<br>icsara:Capítulo VI 1 (0.779)<br>icsara2:Capítulo VI 1 (0.770)<br>Considerando 8.2 (0.767)<br>icsara2:Capítulo VI 2 (0.765) | 2/4 grupos en los primeros 5 (4/4 en 10), 2 citables |
-| `estanque-agua-tratada` | asistente | Considerando 6.2.1 | icsara2:Capítulo III 1.1 (0.666)<br>icsara2:Capítulo II 7.1 (0.666)<br>icsara:Capítulo III 3.5 (0.663)<br>icsara2:Capítulo II 7.5 (0.655)<br>icsara:Capítulo II 6.6 (0.654) | 0/1 grupos en los primeros 5 (0/1 en 10), 0 citables |
-| `estanque-tk65` | asistente | Considerando 4.3 o Considerando 7.5 | icsara2:Capítulo II 7.1 (0.749)<br>icsara2:Capítulo II 7.5 (0.745)<br>icsara2:Capítulo II 7.2 (0.730)<br>Considerando 4.3 (0.716)<br>Considerando 7.5 (0.703) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `fechas-expediente` | asistente | Vistos 1; Considerando 2 o Considerando 3; Considerando 13 o Considerando 14 | Vistos 4 (0.691)<br>Considerando 14 (0.689)<br>Considerando 13 (0.677)<br>icsara:pág. 1 (0.677)<br>icsara2:pág. 1 (0.676) | 1/3 grupos en los primeros 5 (1/3 en 10), 1 citables |
-| `limites-genericos` | asistente | Considerando 8.2; Considerando 8.3; Considerando 10.2; Considerando 10.3 | Considerando 10.2 (0.706)<br>Considerando 10.3 (0.705)<br>icsara:Capítulo VI 3.3 (0.697)<br>Considerando 8.3 (0.695)<br>icsara:Capítulo VI 4.3 (0.695) | 3/4 grupos en los primeros 5 (4/4 en 10), 3 citables |
-| `norma-aplicable` | asistente | Considerando 8.2 o Considerando 8.3 o Considerando 10.2 o Considerando 10.3 | icsara:Capítulo II 13 (0.726)<br>Considerando 7.1 (0.709)<br>icsara2:Capítulo II 7.4 (0.708)<br>icsara:Capítulo II 9.2 (0.708)<br>icsara:Capítulo II 9.3 (0.706) | 0/1 grupos en los primeros 5 (0/1 en 10), 0 citables |
-| `plazos-contingencias` | asistente | Considerando 12.1; Considerando 12.2; Considerando 12.3 o Considerando 12.4 o Considerando 12.5 o Considerando 12.6 o Considerando 12.7 o Considerando 12.8 o Considerando 12.9 | Considerando 12.1 (0.792)<br>Considerando 12.1 (0.734)<br>Considerando 12.6 (0.714)<br>Considerando 12.2 (0.706)<br>icsara:Capítulo V 1.5 (0.703) | 3/3 grupos en los primeros 5 (3/3 en 10), 3 citables |
-| `cifra-falsa-informes` | autor | Considerando 10.1 o Considerando 8.1 | Considerando 10.1 (0.659)<br>Considerando 8.1 (0.629)<br>icsara:Capítulo VI 2 (0.624)<br>icsara2:Capítulo II 1.15 (0.621)<br>Considerando 10.2 (0.613) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `cifra-falsa-mp10` | autor | Considerando 10.1 | Considerando 10.1 (0.686)<br>icsara2:Capítulo II 2.10 (0.665)<br>icsara2:Capítulo II 1.15 (0.644)<br>icsara:Capítulo II 1.10 (0.641)<br>Considerando 8.1 (0.640) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `cifra-falsa-vida-util` | autor | Considerando 4.3.3 | Considerando 4.3.3 (0.738)<br>Considerando 4.3 (0.717)<br>icsara:Capítulo I 4.1 (0.710)<br>Considerando 4.4.2 (0.705)<br>Considerando 4.3 (0.699) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `sismo` | autor | Considerando 12.1 | Considerando 12.1 (0.697)<br>Considerando 12.1 (0.657)<br>Considerando 12.3 (0.649)<br>Considerando 20 (0.611)<br>Considerando 12.6 (0.610) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `inversion` | autor | Considerando 4.1 | Considerando 4.1 (0.720)<br>Considerando 9 (0.664)<br>Considerando 4.4.1 (0.663)<br>Considerando 4.4.4 (0.661)<br>Considerando 4.4.2 (0.656) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `compromisos-voluntarios` | autor | Considerando 8.1; Considerando 8.2; Considerando 8.3; Considerando 8.4 | Considerando 8.1 (0.783)<br>Considerando 8.2 (0.770)<br>Considerando 8.4 (0.762)<br>Considerando 8.3 (0.760)<br>icsara:Capítulo VI 1 (0.789) | 4/4 grupos en los primeros 5 (4/4 en 10), 4 citables |
+| `compromisos-voluntarios-cuales` | autor | Considerando 8.1; Considerando 8.2; Considerando 8.3; Considerando 8.4 | Considerando 8.1 (0.783)<br>Considerando 8.2 (0.767)<br>Considerando 8.4 (0.762)<br>Considerando 8.3 (0.758)<br>icsara:Capítulo VI 1 (0.779) | 4/4 grupos en los primeros 5 (4/4 en 10), 4 citables |
+| `estanque-agua-tratada` | asistente | Considerando 6.2.1 | icsara2:Capítulo III 1.1 (0.666)<br>icsara2:Capítulo II 7.1 (0.666)<br>icsara:Capítulo III 3.5 (0.663)<br>Considerando 4.3 (0.625)<br>icsara2:Capítulo II 7.5 (0.655) | 0/1 grupos en los primeros 5 (1/1 en 10), 0 citables |
+| `estanque-tk65` | asistente | Considerando 4.3 o Considerando 7.5 | icsara2:Capítulo II 7.1 (0.749)<br>Considerando 4.3 (0.716)<br>icsara2:Capítulo II 7.5 (0.745)<br>Considerando 7.5 (0.703)<br>Considerando 7.5 (0.703) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `fechas-expediente` | asistente | Vistos 1; Considerando 2 o Considerando 3; Considerando 13 o Considerando 14 | Vistos 4 (0.691)<br>Considerando 14 (0.689)<br>Considerando 13 (0.677)<br>Vistos 2 (0.673)<br>Considerando 2 (0.657) | 2/3 grupos en los primeros 5 (3/3 en 10), 2 citables |
+| `limites-genericos` | asistente | Considerando 8.2; Considerando 8.3; Considerando 10.2; Considerando 10.3 | Considerando 10.2 (0.706)<br>Considerando 10.3 (0.705)<br>Considerando 8.3 (0.695)<br>Considerando 8.2 (0.691)<br>icsara:Capítulo VI 3.3 (0.697) | 4/4 grupos en los primeros 5 (4/4 en 10), 4 citables |
+| `norma-aplicable` | asistente | Considerando 8.2 o Considerando 8.3 o Considerando 10.2 o Considerando 10.3 | Considerando 7.1 (0.709)<br>Considerando 7.2 (0.705)<br>Considerando 7.1 (0.703)<br>Considerando 7.1 (0.703)<br>Considerando 7.1 (0.698) | 0/1 grupos en los primeros 5 (0/1 en 10), 0 citables |
+| `plazos-contingencias` | asistente | Considerando 12.1; Considerando 12.2; Considerando 12.3 o Considerando 12.4 o Considerando 12.5 o Considerando 12.6 o Considerando 12.7 o Considerando 12.8 o Considerando 12.9 | Considerando 12.1 (0.792)<br>Considerando 12.1 (0.734)<br>Considerando 12.6 (0.714)<br>Considerando 12.2 (0.706)<br>Considerando 12.3 (0.702) | 3/3 grupos en los primeros 5 (3/3 en 10), 3 citables |
+| `cifra-falsa-informes` | autor | Considerando 10.1 o Considerando 8.1 | Considerando 10.1 (0.659)<br>Considerando 8.1 (0.629)<br>Considerando 10.2 (0.613)<br>Considerando 10.3 (0.612)<br>Considerando 7.1 (0.605) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `cifra-falsa-mp10` | autor | Considerando 10.1 | Considerando 10.1 (0.686)<br>Considerando 8.1 (0.640)<br>icsara2:Capítulo II 2.10 (0.665)<br>Considerando 7.1 (0.632)<br>Considerando 7.1 (0.632) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `cifra-falsa-vida-util` | autor | Considerando 4.3.3 | Considerando 4.3.3 (0.738)<br>Considerando 4.3 (0.717)<br>Considerando 4.4.2 (0.705)<br>Considerando 4.3 (0.699)<br>Considerando 4.4.4 (0.699) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
 | `cifra-falsa-inversion` | autor | Considerando 4.1 | Considerando 4.1 (0.679)<br>Considerando 4.3 (0.655)<br>Considerando 4.3 (0.647)<br>Considerando 4.3 (0.646)<br>Considerando 4.3 (0.645) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
-| `entre-documentos-contingencia` | autor | icsara:Capítulo V 1.11; icsara2:Capítulo V 1.3 | icsara:Capítulo V 1.6 (0.738)<br>icsara2:Capítulo V 1.3 (0.735)<br>icsara:Capítulo V 1.11 (0.726)<br>icsara:Capítulo VI 4.4 (0.718)<br>icsara:Capítulo V 1.5 (0.711) | 2/2 grupos en los primeros 5 (2/2 en 10), 2 citables |
-| `entre-documentos-mano-de-obra` | autor | icsara:Capítulo I 4.2; Considerando 4.4.4 | icsara:Capítulo I 4.2 (0.715)<br>Considerando 4.4.4 (0.694)<br>Considerando 14 (0.675)<br>icsara:Capítulo I 5.5 (0.665)<br>Resuelvo 6 (0.654) | 2/2 grupos en los primeros 5 (2/2 en 10), 2 citables |
-| `entre-documentos-afloramiento` | autor | icsara:Capítulo V 1.5 | icsara:Capítulo V 1.5 (0.759)<br>icsara:Capítulo V 1.6 (0.722)<br>Considerando 15 (0.717)<br>Considerando 20 (0.711)<br>Considerando 12.1 (0.708) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
+| `entre-documentos-contingencia` | autor | icsara:Capítulo V 1.11; icsara2:Capítulo V 1.3 | Considerando 20 (0.709)<br>icsara:Capítulo V 1.6 (0.738)<br>icsara2:Capítulo V 1.3 (0.735)<br>icsara:Capítulo V 1.11 (0.726)<br>icsara:Capítulo VI 4.4 (0.718) | 2/2 grupos en los primeros 5 (2/2 en 10), 2 citables |
+| `entre-documentos-mano-de-obra` | autor | icsara:Capítulo I 4.2; Considerando 4.4.4 | Considerando 4.4.4 (0.694)<br>icsara:Capítulo I 4.2 (0.715)<br>Considerando 14 (0.675)<br>Resuelvo 6 (0.654)<br>Considerando 7.12 (0.648) | 2/2 grupos en los primeros 5 (2/2 en 10), 2 citables |
+| `entre-documentos-afloramiento` | autor | icsara:Capítulo V 1.5 | icsara:Capítulo V 1.5 (0.759)<br>Considerando 15 (0.717)<br>Considerando 20 (0.711)<br>Considerando 12.1 (0.708)<br>Considerando 16 (0.696) | 1/1 grupos en los primeros 5 (1/1 en 10), 1 citables |
 | `sin-respuesta-precio-cobre` | autor | — | Considerando 4.3 (0.666)<br>Considerando 4.1 (0.659)<br>Considerando 4.3 (0.656)<br>Considerando 4.4.2 (0.649)<br>Considerando 4.3 (0.649) | no respondible: primer puntaje 0.666, CITARÍA |
-| `sin-respuesta-sueldos` | autor | — | icsara:Capítulo I 4.2 (0.685)<br>Considerando 4.4.4 (0.680)<br>icsara:Capítulo I 5.5 (0.646)<br>Considerando 4.4.2 (0.641)<br>icsara:Capítulo I 4.1 (0.637) | no respondible: primer puntaje 0.685, CITARÍA |
-| `sin-respuesta-energia-solar` | autor | — | icsara:Capítulo I 4.2 (0.637)<br>icsara2:Capítulo I 4.1 (0.626)<br>Considerando 4.3 (0.623)<br>icsara:Capítulo I 5.5 (0.622)<br>Considerando 4.3 (0.619) | no respondible: primer puntaje 0.637, CITARÍA |
+| `sin-respuesta-sueldos` | autor | — | Considerando 4.4.4 (0.680)<br>icsara:Capítulo I 4.2 (0.685)<br>Considerando 4.4.2 (0.641)<br>Considerando 4.3.2 (0.623)<br>Considerando 5.3 (0.617) | no respondible: primer puntaje 0.680, CITARÍA |
+| `sin-respuesta-energia-solar` | autor | — | Considerando 4.3 (0.623)<br>Considerando 4.3 (0.619)<br>Considerando 4.3 (0.619)<br>Considerando 9 (0.617)<br>Considerando 4.3 (0.617) | no respondible: primer puntaje 0.623, CITARÍA |
 | `sin-respuesta-ajena` | autor | — | Resuelvo 6 (0.542)<br>Considerando 4.3 (0.540)<br>Considerando 4.3 (0.539)<br>Considerando 4.3 (0.538)<br>Considerando 23 (0.533) | no respondible: primer puntaje 0.542, sin citas |
 
 ## Puntaje mínimo
@@ -64,7 +64,7 @@ Para cada umbral: cuántas preguntas respondibles tendrían su mejor pasaje espe
 | 0.550 | 20 de 22 | 3 de 4 |
 | 0.575 | 20 de 22 | 3 de 4 |
 | 0.600 **(actual)** | 20 de 22 | 3 de 4 |
-| 0.625 | 20 de 22 | 3 de 4 |
+| 0.625 | 20 de 22 | 2 de 4 |
 | 0.650 | 20 de 22 | 2 de 4 |
 | 0.675 | 19 de 22 | 1 de 4 |
 | 0.700 | 15 de 22 | 0 de 4 |
@@ -83,7 +83,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los parámetros que se utilizan para mantener registro y monitorear la calidad del aire son el material particulado respirable (MP-10), el material particulado sedimentable (MPS) y los parámetros meteorológicos, los cuales incluyen velocidad, dirección del viento, temperatura, humedad relativa y pluviometría [1][2]. Los límites comprometidos para el material particulado respirable MP-10 son un valor máximo de 150 µg/m³N como promedio diario y 50 µg/m³N como promedio trianual, mientras que para el material particulado sedimentable (MPS) el límite corresponde a la norma de referencia establecida en el Decreto Supremo N°4/1992 del Ministerio de Salud [1].
+> Para caracterizar el estado y evolución de la calidad del aire se monitorean los parámetros de Material Particulado Respirable (MP-10), Material Particulado Sedimentable (MPS) y parámetros meteorológicos [1][2]. Los límites comprometidos para el Material Particulado Respirable MP-10 corresponden a un valor máximo promedio diario de 150 ug/m3N y un valor promedio trianual de 50 ug/m3N [1]. Para el Material Particulado Sedimentable (MPS), el límite se rige por la norma de referencia establecida en el Decreto Supremo N°4/1992 del Ministerio de Salud, mientras que para los parámetros meteorológicos (velocidad y dirección del viento, temperatura, humedad relativa y pluviometría) no se especifican límites numéricos en los pasajes, sino la medición continua de dichas variables [1].
 
 1. Considerando 10.1, págs. 89-90 (0.725)
 2. Considerando 8.1, pág. 86 (0.680)
@@ -96,7 +96,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los informes de seguimiento del plan de estaciones de monitoreo de calidad del aire y del compromiso ambiental voluntario de monitoreo de calidad del aire deben entregarse a la autoridad competente cada 6 meses [1][2].
+> Los informes de seguimiento de calidad del aire deben entregarse a la autoridad competente cada 6 meses [1][2].
 
 1. Considerando 10.1, págs. 89-90 (0.710)
 2. Considerando 8.1, pág. 86 (0.667)
@@ -109,10 +109,11 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> El Proyecto contempla una vida útil de 11 años de operación, mientras que la fase de cierre tiene una duración estimada de tres años [1]. Por otra parte, se señala que en el numeral 5.6 de la Adenda de la DIA el Titular indicó que la operación se proyectó con una vida útil de 10 años y un cierre de tres años, información ante la cual se le solicitó aclaración [2].
+> El Proyecto contempla una vida útil de 11 años de operación [1]. Por su parte, la fase de cierre tiene una duración estimada de tres años [1][2][3].
 
 1. Considerando 4.3.3, pág. 35 (0.794)
-2. Capítulo II 1.9, pág. 6 (0.742)
+2. Considerando 4.3, pág. 36 (0.724)
+3. Capítulo II 1.9, pág. 6 (0.742)
 
 ### `permisos-sectoriales`
 
@@ -122,10 +123,12 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Al proyecto le resultan aplicables los permisos ambientales sectoriales mixtos [1]. El proyecto no contempla permisos ambientales sectoriales de contenido únicamente ambiental [2].
+> Al proyecto le aplican los permisos ambientales sectoriales mixtos [1], específicamente el permiso para la construcción, reparación, modificación y ampliación de cualquier obra pública o particular destinada a la evacuación, tratamiento o disposición final de desagües y aguas servidas (establecido en el artículo 138 del Reglamento del SEIA) [3] y el permiso para subdividir y urbanizar terrenos rurales o para construcciones fuera de los límites urbanos (establecido en el artículo 160 del Reglamento del SEIA) [4]. El proyecto no contempla permisos ambientales sectoriales de contenido únicamente ambiental [2].
 
 1. Considerando 6.2, pág. 61 (0.815)
 2. Considerando 6.1, pág. 61 (0.809)
+3. Considerando 6.2.1, págs. 62-63 (0.789)
+4. Considerando 6.2.2, págs. 63-64 (0.788)
 
 ### `permisos-sectoriales-cuales`
 
@@ -135,7 +138,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los permisos ambientales sectoriales aplicables al proyecto corresponden a permisos ambientales sectoriales mixtos, ya que el proyecto no contempla permisos de contenido únicamente ambiental [1][2]. Entre ellos se encuentran el permiso para la construcción, reparación, modificación y ampliación de cualquier obra pública o particular destinada a la evacuación, tratamiento o disposición final de desagües y aguas servidas (establecido en el artículo 138 del Reglamento del SEIA) y el permiso para subdividir y urbanizar terrenos rurales o para construcciones fuera de los límites urbanos (establecido en el artículo 160 del Reglamento del SEIA) [3][4].
+> Los permisos ambientales sectoriales aplicables al proyecto corresponden a los permisos ambientales sectoriales mixtos [1], ya que el proyecto no contempla permisos ambientales sectoriales de contenido únicamente ambiental [2]. Entre los permisos mixtos se encuentran el permiso para la construcción, reparación, modificación y ampliación de cualquier obra pública o particular destinada a la evacuación, tratamiento o disposición final de desagües y aguas servidas (establecido en el artículo 138 del Reglamento del SEIA) [3], y el permiso para subdividir y urbanizar terrenos rurales o para construcciones fuera de los límites urbanos (establecido en el artículo 160 del Reglamento del SEIA) [4].
 
 1. Considerando 6.2, pág. 61 (0.790)
 2. Considerando 6.1, pág. 61 (0.780)
@@ -150,7 +153,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Ante un sismo, el titular debe implementar medidas preventivas como diseñar instalaciones bajo criterios sismo-resistentes, capacitar al personal, difundir y mantener despejadas las áreas de seguridad, mantener los vehículos estacionados sin obstruir accesos y en posición de salida, realizar simulacros de evacuación e informar a los nuevos trabajadores sobre el protocolo de emergencia [1]. Para controlar la emergencia, el encargado debe llamar a mantener la calma, los trabajadores deben movilizarse a la zona de seguridad más cercana, el encargado debe comunicarse con otras áreas para informar y conocer la situación, se debe hacer un recuento de trabajadores, asistir a los lesionados, evaluar daños materiales para detectar posibles emergencias ambientales y, de no haber daños colaterales, dar por terminada la emergencia para retornar a las labores [1]. Adicionalmente, en caso de que la emergencia configure algún riesgo o potencial afectación a un componente ambiental, se debe comunicar a la Superintendencia del Medio Ambiente (SMA) en un plazo de 24 horas [2].
+> Ante un sismo, el titular debe implementar medidas preventivas como diseñar instalaciones bajo criterios sismo-resistentess, capacitar al personal, difundir y mantener despejadas áreas de seguridad libres de elementos de riesgo, mantener los vehículos estacionados sin obstruir accesos y en posición de salida, realizar simulacros periódicos e informar a los nuevos trabajadores sobre el protocolo de respuesta a emergencias [1]. Para controlar la emergencia, el personal debe mantener la calma mediante el llamado de un encargado, movilizarse a la zona de seguridad más cercana, comunicarse entre áreas para conocer la situación, realizar un recuento de trabajadores y asistir a los lesionados [1]. Posteriormente, se debe revisar si existen daños materiales y posibles emergencias ambientales por derrames, y de no haber daños colaterales, se dará por terminada la emergencia para retornar a las labores [1]. Además, si la emergencia configura un riesgo o potencial afectación a algún componente ambiental, se debe comunicar a la Superintendencia del Medio Ambiente en un plazo de 24 horas [2].
 
 1. Considerando 12.1, págs. 93-94 (0.697)
 2. Considerando 12.1, pág. 94 (0.657)
@@ -163,7 +166,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> La inversión estimada para la ejecución del proyecto es de USD $30 millones de dólares americanos [1].
+> El monto de inversión estimado para la ejecución del proyecto será de 30 millones de dólares americanos [1].
 
 1. Considerando 4.1, págs. 3-4 (0.720)
 
@@ -175,11 +178,12 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> El proyecto contempla el compromiso ambiental voluntario denominado “Monitoreo Calidad del Aire”, el cual se aplica en la fase de operación para mantener un registro de los valores de MP-10, MPS y meteorología [1]. Asimismo, los documentos mencionan los compromisos voluntarios denominados “Plan de Monitoreo Calidad de Aguas Subterráneas” y “Plan de Monitoreo Calidad de Aguas Superficiales”, respecto de los cuales se solicita al titular ampliar información sobre la justificación de la ubicación de sus puntos de monitoreo [2][3].
+> El proyecto contempla realizar como compromisos ambientales voluntarios el monitoreo de la calidad del aire [1], el plan de monitoreo de la calidad de aguas subterráneas [2], el plan de monitoreo de ruido [3] y el plan de monitoreo de la calidad de aguas superficiales [4].
 
 1. Considerando 8.1, pág. 86 (0.783)
-2. Capítulo VI 2, pág. 39 (0.776)
-3. Capítulo VI 3, pág. 39 (0.770)
+2. Considerando 8.2, págs. 86-87 (0.770)
+3. Considerando 8.4, pág. 88 (0.762)
+4. Considerando 8.3, págs. 87-88 (0.760)
 
 ### `compromisos-voluntarios-cuales`
 
@@ -189,10 +193,12 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los compromisos ambientales voluntarios contemplados por el proyecto son el monitoreo de calidad del aire y el plan de monitoreo de calidad de aguas subterráneas [1][2].
+> El proyecto contempla realizar como compromisos ambientales voluntarios el monitoreo de la calidad del aire [1], el plan de monitoreo de la calidad de aguas subterráneas [2], el plan de monitoreo de calidad de aguas superficiales [4] y el plan de monitoreo de ruido [3].
 
 1. Considerando 8.1, pág. 86 (0.783)
 2. Considerando 8.2, págs. 86-87 (0.767)
+3. Considerando 8.4, pág. 88 (0.762)
+4. Considerando 8.3, págs. 87-88 (0.758)
 
 ### `estanque-agua-tratada`
 
@@ -202,7 +208,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes no contienen información sobre las razones de las incongruencias en el volumen útil de un estanque de acumulación de agua tratada, ni mencionan una capacidad mínima de 4.000 litros/día o un tiempo de retención no superior a 48 horas. Respecto a la fosa séptica, los documentos señalan que existe una diferencia de 80 litros entre el volumen útil requerido por la memoria de cálculo (7.080 litros) y el tamaño indicado en la Adenda (7.000 litros útiles, dentro de un volumen total de 7.900 litros), por lo que se requiere al Titular revisar el diseño y acreditar que el sistema cumple técnicamente [1].
+> Los pasajes no mencionan ninguna incongruencia en el volumen de un estanque de acumulación de agua tratada ni hacen referencia a una capacidad mínima de 4.000 litros/día ni a un tiempo de retención no superior a 48 horas. Respecto al volumen del sistema de tratamiento de aguas servidas, se señala una diferencia de 80 litros entre el volumen útil requerido de 7.080 litros según los cálculos y la fosa séptica instalada, que tiene un tamaño de 7.900 litros (7.000 litros útiles) [1].
 
 1. Capítulo III 1.1, págs. 16-17 (0.666)
 
@@ -214,10 +220,11 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes señalan que el estanque de almacenamiento denominado TK-65 tiene una capacidad de 34 m3 [1][2], sin mencionar un valor de 4 m3 ni hacer referencia a una Tabla 7.5.1 sobre cumplimiento del DS 594.
+> Los pasajes señalan que el estanque de almacenamiento denominado TK-65 tiene una capacidad de 34 m3 [1][2][3], sin mencionar un valor de 4 m3 ni hacer referencia a un numeral 4.3.2.
 
 1. Considerando 4.3, págs. 34-35 (0.716)
 2. Considerando 7.5, págs. 77-78 (0.703)
+3. Considerando 7.5, págs. 76-77 (0.703)
 
 ### `fechas-expediente`
 
@@ -227,13 +234,10 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes no contienen información sobre por qué existe un desfase temporal en la secuencia del expediente de evaluación, pero señalan que la DIA del proyecto “Continuidad Operacional Minera Tres Valles” fue publicada en agosto de 2024 [3], y que tras recibirse solicitudes de participación ciudadana, se admitió dicho proceso mediante la Resolución Exenta N°20240400189 de 9 de octubre de 2024, desarrollándose la participación entre el 17 de octubre y el 15 de noviembre de 2024 [3]. Asimismo, se menciona un Informe Consolidado de Solicitud de Aclaraciones, Rectificaciones y/o Ampliaciones de agosto de 2024 [4], un Informe Consolidado Complementario de julio de 2025 [5], el ICE N°20250410986 de la DIA de fecha 23 de diciembre de 2025 [1], y un Anexo PAC incorporado a la Resolución de Calificación Ambiental que considera las observaciones ciudadanas formuladas durante el proceso [2].
+> Los pasajes no contienen información para explicar por qué existe un desfase temporal en la secuencia del expediente de evaluación, pero señalan que la DIA del proyecto fue publicada en agosto de 2024, el proceso de participación ciudadana se desarrolló entre el 17 de octubre y el 15 de noviembre de 2024, y tanto el ICE como el ICE N°20250410986 datan del 23 de diciembre de 2025 [1][2].
 
 1. Vistos 4, pág. 1 (0.691)
-2. Considerando 14, pág. 106 (0.689)
-3. Considerando 13, pág. 106 (0.677)
-4. pág. 1 (0.677)
-5. pág. 1 (0.676)
+2. Considerando 13, pág. 106 (0.677)
 
 ### `limites-genericos`
 
@@ -243,17 +247,12 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes entregados no explican por qué se utiliza la fórmula genérica "límites máximos permitidos por la autoridad correspondiente" en lugar de un valor normativo numérico o una norma específica de referencia en dichos planes. Tampoco mencionan los numerales 8.2 y 8.3, sino que se refieren al plan de monitoreo de aguas subterráneas y superficiales bajo los numerales 10.2 y 10.3 [1][2], además de los compromisos ambientales voluntarios bajo el numeral 8.3 [4] y solicitudes de aclaración sobre estos en el ICSARA [3][5].
-> 
-> Aviso: la cifra «8.2» no aparece en los pasajes que cita su oración. Verifícala en las citas antes de usarla.
+> Los pasajes no contienen información que explique por qué se utiliza la fórmula genérica "límites máximos permitidos por la autoridad correspondiente" en lugar de un valor normativo numérico o una norma específica de referencia en dichos planes de monitoreo. Lo que los pasajes señalan es que tanto en los planes de seguimiento ambiental como en los compromisos ambientales voluntarios de calidad de aguas subterráneas y superficiales, los límites permitidos, comprometidos o indicadores de cumplimiento corresponden precisamente a los límites máximos permitidos por la autoridad correspondiente [1][2][3][4].
 
 1. Considerando 10.2, pág. 90 (0.706)
 2. Considerando 10.3, págs. 90-91 (0.705)
-3. Capítulo VI 3.3, pág. 41 (0.697)
-4. Considerando 8.3, págs. 87-88 (0.695)
-5. Capítulo VI 4.3, pág. 41 (0.695)
-
-**Cifras sin respaldo en sus citas:** 8.2
+3. Considerando 8.3, págs. 87-88 (0.695)
+4. Considerando 8.2, págs. 86-87 (0.691)
 
 ### `norma-aplicable`
 
@@ -263,10 +262,13 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes no contienen información sobre cómo se garantiza la certeza jurídica y la fiscalizabilidad ante la Superintendencia del Medio Ambiente si no se estipula de forma explícita la norma aplicable, ni mencionan la NCh 1333 o el D.S. N° 90/2000. Sin embargo, sobre las normas de calidad (como los Decretos Supremos N°114/2003, N°115/2002, N°12/2011 y N°12/2022), se indica que solo se utilizan para evaluar si el proyecto genera o presenta riesgo para la salud de la población debido a sus emisiones y si requiere un Estudio de Impacto Ambiental, por lo que no corresponde incorporarlas como normativa ambiental aplicable, solicitando al titular rectificar el capítulo correspondiente del plan de cumplimiento [1]. Adicionalmente, se señala que los registros de los indicadores de cumplimiento de la normativa ambiental aplicable estarán disponibles en las oficinas del proyecto en caso de que se requiera fiscalización por parte de la autoridad [2].
+> Los pasajes entregados no contienen información sobre la NCh 1333, el D.S. N° 90/2000 ni sobre la garantía de certeza jurídica ante la Superintendencia del Medio Ambiente (SMA). No obstante, indican que los registros de los indicadores de cumplimiento de las medidas y la normativa ambiental aplicable estarán disponibles en las oficinas del Proyecto o dispuestos en plataformas para la revisión y fiscalización por parte de la autoridad competente [1][2][3][4][5].
 
-1. Capítulo II 13, pág. 17 (0.726)
-2. Considerando 7.1, págs. 67-68 (0.709)
+1. Considerando 7.1, págs. 67-68 (0.709)
+2. Considerando 7.2, pág. 71 (0.705)
+3. Considerando 7.1, págs. 66-67 (0.703)
+4. Considerando 7.1, págs. 69-70 (0.703)
+5. Considerando 7.1, págs. 65-66 (0.698)
 
 ### `plazos-contingencias`
 
@@ -276,11 +278,12 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes no contienen información sobre la razón por la cual se fijaría un plazo de notificación a la SMA de 24 horas para el evento sísmico y de 48 horas para el resto de las contingencias, por lo que no explican dicha diferencia. Respecto a los plazos, los pasajes indican que ante emergencias que configuren algún riesgo o potencial afectación a un componente ambiental se debe comunicar a la Superintendencia de Medio Ambiente (SMA) en un plazo de 24 horas [1][3], mientras que en otro contexto se señala que se informará a la autoridad correspondiente y a la SMA mediante un informe dentro de las 48 horas posteriores al suceso [2].
+> Los pasajes entregados no contienen información sobre los motivos o razones por los cuales se establecen plazos de notificación de 24 horas para el caso de evento sísmico y de 48 horas para otras contingencias. Los pasajes señalan que en caso de emergencias que configuren un riesgo o potencial afectación a algún componente ambiental se comunicará a la SMA dentro de un plazo de 24 horas [1][3], y que se informará a la autoridad correspondiente y a la SMA mediante un informe dentro de las 48 horas posteriores al suceso [2][4].
 
 1. Considerando 12.1, pág. 94 (0.792)
 2. Considerando 12.6, pág. 99 (0.714)
 3. Considerando 12.2, pág. 95 (0.706)
+4. Considerando 12.3, págs. 95-96 (0.702)
 
 ### `cifra-falsa-informes`
 
@@ -290,7 +293,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes no indican que los informes de calidad del aire se entreguen cada 3 meses; en cambio, señalan que la entrega de los informes de seguimiento a la autoridad competente se realiza cada 6 meses [1][2]. Respecto a los plazos de medición, los pasajes indican que para el material particulado respirable (MP-10) se contempla una muestra de 24 horas cada 3 días, mientras que para el material particulado sedimentable (MPS) y las estaciones meteorológicas la medición es continua [1][2].
+> Los pasajes señalan que la entrega de los informes de seguimiento a la autoridad competente se realiza cada 6 meses, no cada 3 meses [1][2].
 
 1. Considerando 10.1, págs. 89-90 (0.659)
 2. Considerando 8.1, pág. 86 (0.629)
@@ -303,7 +306,7 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.5-flash-lite`):
 
-> Los pasajes no indican que la RCA fije el límite diario de MP-10 en 100 ug/m3N, sino que establecen como valor máximo para el material particulado respirable MP-10 un promedio diario de 150 ug/m3N y un promedio trianual de 50 ug/m3N [1].
+> Los pasajes no contienen información sobre por qué se fija el límite diario de MP-10 en 100 ug/m3N ni mencionan ese valor, ya que respecto al material particulado respirable MP-10 solo establecen un valor máximo promedio diario de 150 ug/m3N y un valor promedio trianual de 50 ug/m3N [1].
 
 1. Considerando 10.1, págs. 89-90 (0.686)
 
@@ -315,12 +318,13 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.1-flash-lite`):
 
-> Los pasajes no mencionan una duración de 15 años para la fase de operación, sino que indican que el proyecto contempla una vida útil de 11 años de operación [1], con una fecha de término estimada para diciembre de 2037 [3]. Al finalizar la operación, se iniciará una fase de cierre con una duración estimada de tres años, cuyo propósito es prevenir, minimizar o controlar riesgos sobre la salud, seguridad y el medio ambiente [1][2]. Las actividades principales de esta etapa incluyen el desmantelamiento, desenergización y retiro de infraestructura, protección de estructuras remanentes, cierre de accesos y señalizaciones, estabilización de taludes, sellado de bocaminas y piques, manejo de soluciones remanentes, retiro de materiales, escombros y repuestos, cierre de almacenes de explosivos, actividades de perfilamiento y compactación, restauración del área intervenida, prevención de emisiones, y labores de mantención, conservación y supervisión [2][4].
+> Los pasajes no indican qué se hará al terminar 15 años de operación, ya que establecen que la fase de operación tiene una duración de 11 años, con inicio en enero de 2027 y término en diciembre de 2037 [3][5]. Tras finalizar la operación, el proyecto contempla una fase de cierre con una duración estimada de tres años, cuyo propósito es ejecutar medidas para prevenir, minimizar o controlar riesgos o efectos negativos sobre la salud, seguridad de las personas y el medio ambiente [1][2]. Durante esta etapa se realizarán actividades como el desmantelamiento, desenergización y retiro de infraestructura, protección de estructuras remanentes, cierre de accesos y señalizaciones, estabilización de taludes, sellado de bocaminas y piques, manejo de soluciones remanentes, retiro de materiales, escombros y repuestos, cierre de almacenes de explosivos, actividades de perfilamiento y compactación, restauración del área intervenida, prevención de futuras emisiones, y labores de mantención, conservación y supervisión [2][4].
 
 1. Considerando 4.3.3, pág. 35 (0.738)
 2. Considerando 4.3, pág. 36 (0.717)
 3. Considerando 4.4.2, pág. 40 (0.705)
 4. Considerando 4.3, págs. 36-37 (0.699)
+5. Considerando 4.4.4, págs. 40-41 (0.699)
 
 ### `cifra-falsa-inversion`
 
@@ -342,11 +346,12 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.1-flash-lite`):
 
-> En junio de 2024 ocurrió una contingencia ambiental producto de las lluvias, la cual generó un deslizamiento de material lixiviado hacia la quebrada de Quilmenco, afluente del Río Choapa [1][2]. Respecto a este evento, el SEA solicitó al titular aclarar cómo se relaciona dicho suceso con el proyecto y complementar el Plan de Prevención de Contingencias y Emergencias describiendo las medidas para minimizar riesgos [2]. Asimismo, se pidió aclarar si las acciones y medidas presentadas en la Adenda de la DIA para esta contingencia ya estaban implementadas o si se construirán, considerando que, de haber estado operativas, deben ser replanteadas para asegurar su efectividad ante eventos de lluvia [1]. Finalmente, se solicitó evaluar la incorporación de un punto extra de monitoreo en un canal de regadío en el sector de Cárcamo como parte del plan de emergencia y/o contingencia [3].
+> En junio de 2024 ocurrió un evento de precipitaciones que provocó el deslizamiento o derrame de material lixiviado hacia la quebrada de Quilmenco, afluente del Río Choapa [1][2][3]. Ante esto, el SEA solicitó al titular aclarar si las medidas presentadas para enfrentar dicha contingencia ya estaban implementadas o si se construirán, advirtiendo que, de haber estado operativas, deben ser replanteadas para asegurar su efectividad ante eventos de lluvia [2]. Asimismo, se pidió al titular relacionar este evento con el proyecto y complementar el Plan de Prevención de Contingencias y Emergencias describiendo acciones para minimizar riesgos [3], además de evaluar la incorporación de un punto extra de monitoreo en un canal de regadío en el sector de Cárcamo [4]. Finalmente, se exigió incorporar medidas específicas para accidentes que comprometan recursos hídricos, las cuales incluyen informar a la Superintendencia del Medio Ambiente antes de 24 horas detallando la descripción del accidente, las acciones de control, la evaluación de efectos sobre los recursos hídricos y, de ser necesario, un programa de descontaminación [1].
 
-1. Capítulo V 1.3, pág. 38 (0.735)
-2. Capítulo V 1.11, pág. 40 (0.726)
-3. Capítulo VI 4.4, pág. 41 (0.718)
+1. Capítulo V 1.6, pág. 38 (0.738)
+2. Capítulo V 1.3, pág. 38 (0.735)
+3. Capítulo V 1.11, pág. 40 (0.726)
+4. Capítulo VI 4.4, pág. 41 (0.718)
 
 ### `entre-documentos-mano-de-obra`
 
@@ -356,10 +361,10 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.1-flash-lite`):
 
-> El SEA solicitó al titular privilegiar la contratación de mano de obra local de las comunas de Illapel y Salamanca mediante la coordinación con las Oficinas Municipales de Inserción Laboral (OMIL), además de indicar el número de personas contempladas para dicha contratación [1]. En la RCA, se estableció que se coordinará con las OMIL de dichas comunas para publicar vacantes laborales, buscando así priorizar la contratación de mano de obra local [2]. Los pasajes no precisan el número de personas contempladas para esta contratación local, limitándose a informar las cifras promedio y máximas de trabajadores para las fases de operación y cierre.
+> El Servicio de Evaluación Ambiental solicitó al titular privilegiar la contratación de mano de obra local de las comunas de Illapel y Salamanca mediante la coordinación con las Oficinas Municipales de Inserción Laboral (OMIL), además de requerir que se indicara el número de personas contempladas bajo esta modalidad [2]. En la Resolución de Calificación Ambiental (RCA), se estableció que se coordinará con las OMIL de dichas comunas para publicar vacantes laborales, buscando así priorizar la contratación de mano de obra local [1].
 
-1. Capítulo I 4.2, pág. 5 (0.715)
-2. Considerando 4.4.4, págs. 40-41 (0.694)
+1. Considerando 4.4.4, págs. 40-41 (0.694)
+2. Capítulo I 4.2, pág. 5 (0.715)
 
 ### `entre-documentos-afloramiento`
 
@@ -369,10 +374,9 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 **Respuesta** (redactada por `gemini-3.1-flash-lite`):
 
-> Los pasajes entregados no contienen información que confirme que la Resolución de Calificación Ambiental (RCA) exija específicamente el aviso a la Superintendencia del Medio Ambiente en un plazo menor a 24 horas ante un afloramiento de aguas, ya que dicha exigencia es solicitada por el SEA en el documento ICSARA. No obstante, la RCA establece que el titular debe informar inmediatamente a la Superintendencia del Medio Ambiente sobre impactos ambientales no previstos en la DIA [1] y, en caso de emergencias que impliquen riesgo o afectación a componentes ambientales, comunicar a dicha entidad dentro de un plazo de 24 horas [2].
+> Los pasajes entregados no contienen información que confirme si la Resolución de Calificación Ambiental (RCA) exige específicamente el aviso en menos de 24 horas ante un afloramiento de aguas, ya que dicha instrucción proviene de un documento de solicitud de aclaración (ICSARA). No obstante, los pasajes sí establecen que, ante emergencias que impliquen riesgo o afectación a componentes ambientales, el titular debe comunicar a la Superintendencia del Medio Ambiente (SMA) en un plazo de 24 horas [1].
 
-1. Considerando 20, pág. 107 (0.711)
-2. Considerando 12.1, pág. 94 (0.708)
+1. Considerando 12.1, pág. 94 (0.708)
 
 ### `sin-respuesta-precio-cobre`
 
@@ -400,11 +404,11 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 > Los pasajes recuperados no responden esta pregunta. Se muestran los 5 más relacionados, por si contienen algo útil; verifica en ellos antes de concluir que el documento no trata el tema.
 
-1. Capítulo I 4.2, pág. 5 (0.685)
-2. Considerando 4.4.4, págs. 40-41 (0.680)
-3. Capítulo I 5.5, pág. 9 (0.646)
-4. Considerando 4.4.2, pág. 40 (0.641)
-5. Capítulo I 4.1, págs. 4-5 (0.637)
+1. Considerando 4.4.4, págs. 40-41 (0.680)
+2. Capítulo I 4.2, pág. 5 (0.685)
+3. Considerando 4.4.2, pág. 40 (0.641)
+4. Considerando 4.3.2, pág. 22 (0.623)
+5. Considerando 5.3, págs. 56-57 (0.617)
 
 ### `sin-respuesta-energia-solar`
 
@@ -416,11 +420,11 @@ La verificación automática comprueba que las citas existan, no que la respuest
 
 > Los pasajes recuperados no responden esta pregunta. Se muestran los 5 más relacionados, por si contienen algo útil; verifica en ellos antes de concluir que el documento no trata el tema.
 
-1. Capítulo I 4.2, pág. 5 (0.637)
-2. Capítulo I 4.1, pág. 3 (0.626)
-3. Considerando 4.3, págs. 14-15 (0.623)
-4. Capítulo I 5.5, pág. 9 (0.622)
-5. Considerando 4.3, págs. 27-28 (0.619)
+1. Considerando 4.3, págs. 14-15 (0.623)
+2. Considerando 4.3, págs. 27-28 (0.619)
+3. Considerando 4.3, págs. 17-19 (0.619)
+4. Considerando 9, pág. 88 (0.617)
+5. Considerando 4.3, pág. 7 (0.617)
 
 ### `sin-respuesta-ajena`
 

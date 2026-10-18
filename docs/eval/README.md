@@ -21,7 +21,23 @@ Consume cuota del proveedor de embeddings, y con `-generate` también de generac
 
 El documento se sube con los metadatos que tiene en producción (`metadata` en el conjunto), porque su nombre llega al modelo junto a cada pasaje. Con otro nombre las respuestas cambian: subido como `rca-tres-valles.pdf`, la evaluación no reproducía un error que en producción ocurrió en tres de cuatro consultas.
 
-## Resultado vigente: el corpus pasa a tres documentos (#83)
+## Resultado vigente: la RCA tiene prioridad (#86)
+
+Al ordenar los pasajes, los de la RCA suman 0,03 a su similitud (ADR-0015). El puntaje que se informa y el piso para citar no cambian.
+
+| Medida | Solo la RCA (tras #75) | Tres documentos | Tres documentos, con prioridad |
+|---|---|---|---|
+| Preguntas con todo lo esperado entre los primeros 5 | 17 de 19 | 15 de 22 | 19 de 22 |
+| Grupos de secciones entre los primeros 5 | 34 de 36 | 30 de 41 | 38 de 41 |
+| Ídem entre los primeros 10 | 35 de 36 | 37 de 41 | 40 de 41 |
+
+Es el resultado que anticipó la medición sin generación. Los compromisos voluntarios vuelven a recuperar los cuatro planes y la respuesta los enumera completos y sin la charla; los permisos, los límites genéricos y las fechas recuperan lo que habían perdido. Las tres preguntas que cruzan documentos siguen recuperando lo esperado y atribuyendo cada parte a su documento.
+
+Revisadas a mano, las 22 respuestas redactadas o seguras quedan así: 20 correctas o seguras, `norma-aplicable` parcial como antes, y `estanque-agua-tratada` **sin respuesta útil**: la 6.2.1 de la RCA queda entre los lugares 6 y 10, y la respuesta habla de la fosa séptica del ICSARA. Su pasaje ya puntuaba bajo (0,617) con un solo documento; la prioridad no alcanza para subirlo.
+
+Ninguna respuesta tuvo cifras sin respaldo. El aviso falso de la corrida anterior ("Tampoco mencionan…") se corrigió agregando esa forma de negar.
+
+## El corpus pasa a tres documentos (#83)
 
 El corpus de la evaluación suma los dos ICSARA del proyecto (168 y 119 fragmentos), con los mismos metadatos que tendrán en producción, y el conjunto suma tres preguntas que cruzan documentos. Una sección esperada puede nombrar su documento: `icsara:Capítulo V 1.11`.
 
@@ -38,7 +54,7 @@ El corpus de la evaluación suma los dos ICSARA del proyecto (168 y 119 fragment
 - `estanque-agua-tratada` no recupera la 6.2.1 ni entre los primeros 10, y la respuesta habla de la fosa séptica del ICSARA.
 - `limites-genericos` recibió un aviso falso por la cifra 8.2, en una cláusula que niega con "Tampoco mencionan…", una forma que la verificación no reconoce.
 
-Una medición sin generación, ordenando los mismos resultados con una ventaja para la RCA, muestra que con 0,03 se recuperan 19 de 22 preguntas completas sin perder las que cruzan documentos. Es lo que decide #85; hasta entonces, los ICSARA no se ingieren en producción.
+Una medición sin generación, ordenando los mismos resultados con una ventaja para la RCA, muestra que con 0,03 se recuperan 19 de 22 preguntas completas sin perder las que cruzan documentos. Es lo que decide #86; hasta entonces, los ICSARA no se ingieren en producción.
 
 ## Tras #75
 
