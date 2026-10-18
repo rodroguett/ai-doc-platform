@@ -53,21 +53,34 @@ const (
 )
 
 type evalSet struct {
-	Document string `json:"document"`
+	Documents []evalDocument `json:"documents"`
+	Notes     string         `json:"notes"`
+	Cases     []evalCase     `json:"cases"`
+
+	// bySource identifica cada documento por la fuente con que llega en
+	// un pasaje.
+	bySource map[string]string
+}
+
+// evalDocument es un documento del corpus de la evaluación.
+type evalDocument struct {
+	// ID es como lo nombran las secciones esperadas: "icsara:Capítulo V 1.3".
+	ID   string `json:"id"`
+	Path string `json:"path"`
 
 	// Metadata son los metadatos con que el documento está subido en
 	// producción. El nombre del documento llega al modelo junto a cada
 	// pasaje, y con otro nombre las respuestas cambian.
 	Metadata map[string]any `json:"metadata"`
-
-	Notes string     `json:"notes"`
-	Cases []evalCase `json:"cases"`
 }
 
 // evalCase es una pregunta. Expect son grupos de secciones: cada grupo se
 // cumple si se recupera alguna de sus secciones, y una respuesta completa
-// necesita todos los grupos. Sin grupos, el documento no responde la
-// pregunta.
+// necesita todos los grupos. Sin grupos, el corpus no responde la pregunta.
+//
+// Una sección puede nombrar su documento: "icsara:Capítulo V 1.3". Sin él,
+// vale la sección de cualquier documento; los nombres de sección de la RCA
+// y de los ICSARA no se repiten.
 //
 // Reject son secciones que la respuesta redactada no debe citar: parecen
 // responder la pregunta, pero pertenecen a otra cosa. La verificación de
@@ -142,8 +155,13 @@ func run(setPath, dbURL string, generate bool, out, only string) error {
 	})
 	local.Start(documents.RunJob)
 
-	if err := ensureCorpus(ctx, pool, st, documents, set); err != nil {
-		return err
+	set.bySource = map[string]string{}
+	for _, doc := range set.Documents {
+		if err := ensureCorpus(ctx, pool, st, documents, doc); err != nil {
+			return fmt.Errorf("%s: %w", doc.ID, err)
+		}
+		source, _ := doc.Metadata["source"].(string)
+		set.bySource[source] = doc.ID
 	}
 
 	retriever := &scoped{documents: documents, searched: map[string][]rag.Passage{}}
@@ -153,7 +171,7 @@ func run(setPath, dbURL string, generate bool, out, only string) error {
 		if err != nil {
 			return fmt.Errorf("buscar %q: %w", c.ID, err)
 		}
-		results[i] = score(c, passages)
+		results[i] = score(c, passages, set.bySource)
 		fmt.Fprintf(os.Stderr, "  %-28s %s\n", c.ID, results[i].summary())
 	}
 
@@ -215,14 +233,14 @@ func (s *scoped) Search(ctx context.Context, query string, opts rag.SearchOption
 
 // ensureCorpus ingiere el documento del conjunto si todavía no está listo
 // con los metadatos del conjunto.
-func ensureCorpus(ctx context.Context, pool *pgxpool.Pool, st *store.Store, documents *rag.Service, set evalSet) error {
-	path := set.Document
+func ensureCorpus(ctx context.Context, pool *pgxpool.Pool, st *store.Store, documents *rag.Service, doc evalDocument) error {
+	path := doc.Path
 	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return err
 	}
 	sum := sha256.Sum256(data)
-	want, err := json.Marshal(set.Metadata)
+	want, err := json.Marshal(doc.Metadata)
 	if err != nil {
 		return err
 	}
@@ -245,7 +263,7 @@ func ensureCorpus(ctx context.Context, pool *pgxpool.Pool, st *store.Store, docu
 	}
 
 	fmt.Fprintln(os.Stderr, "eval: ingiriendo el documento; consume unos 112.000 tokens de embeddings y unos cuatro minutos")
-	job, err := documents.Submit(ctx, rag.Upload{Filename: path, Collection: collection, Metadata: set.Metadata, Content: data})
+	job, err := documents.Submit(ctx, rag.Upload{Filename: path, Collection: collection, Metadata: doc.Metadata, Content: data})
 	if err != nil {
 		return fmt.Errorf("subir el documento: %w", err)
 	}
@@ -284,19 +302,19 @@ type result struct {
 	answer    *orchestrator.Answer
 }
 
-func score(c evalCase, passages []rag.Passage) result {
+func score(c evalCase, passages []rag.Passage, bySource map[string]string) result {
 	r := result{answerable: len(c.Expect) > 0, groups: len(c.Expect)}
 	if len(passages) > 0 {
 		r.top = passages[0].Score
 	}
 	for _, p := range passages[:min(cutoff, len(passages))] {
-		r.retrieved = append(r.retrieved, fmt.Sprintf("%s (%.3f)", label(p), p.Score))
+		r.retrieved = append(r.retrieved, fmt.Sprintf("%s (%.3f)", label(p, bySource), p.Score))
 	}
 
 	for _, group := range c.Expect {
 		hit, deep, cite := false, false, false
 		for i, p := range passages {
-			if !slices.Contains(group, p.Section) {
+			if !slices.ContainsFunc(group, func(want string) bool { return matches(want, p, bySource) }) {
 				continue
 			}
 			deep = true
@@ -329,11 +347,25 @@ func rejectedCitations(c evalCase, a *orchestrator.Answer) []string {
 	return out
 }
 
-func label(p rag.Passage) string {
-	if p.Section == "" {
-		return fmt.Sprintf("pág. %d", p.PageStart)
+// matches indica si el pasaje es la sección esperada.
+func matches(want string, p rag.Passage, bySource map[string]string) bool {
+	if doc, section, ok := strings.Cut(want, ":"); ok {
+		return bySource[p.Source] == doc && p.Section == section
 	}
-	return p.Section
+	return p.Section == want
+}
+
+// label nombra un pasaje con su documento, salvo que sea de la RCA, que es
+// el documento del que tratan la mayoría de las preguntas.
+func label(p rag.Passage, bySource map[string]string) string {
+	section := p.Section
+	if section == "" {
+		section = fmt.Sprintf("pág. %d", p.PageStart)
+	}
+	if doc := bySource[p.Source]; doc != "" && doc != "rca" {
+		return doc + ":" + section
+	}
+	return section
 }
 
 func b2i(b bool) int {
@@ -373,7 +405,10 @@ func report(w io.Writer, set evalSet, results []result, model string, generated 
 		}
 	}
 
-	p("# Evaluación de la búsqueda: %s\n\n", set.Document)
+	p("# Evaluación de la búsqueda\n\n")
+	for _, doc := range set.Documents {
+		p("- **Documento `%s`:** %s\n", doc.ID, doc.Path)
+	}
 	p("- **Fecha:** %s\n", time.Now().Format(time.DateOnly))
 	p("- **Modelo de embeddings:** `%s`\n", model)
 	p("- **Puntaje mínimo para citar:** %.2f\n", orchestrator.MinScore)
