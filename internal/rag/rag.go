@@ -55,6 +55,10 @@ const (
 type SearchOptions struct {
 	Collection string // vacía: todas las colecciones
 	TopK       int    // cuántos pasajes devolver, a lo más
+
+	// Filters restringe la búsqueda a los documentos cuyos metadatos
+	// contienen estos pares clave-valor: {"tipo": "RCA"}. Vacío: todos.
+	Filters map[string]any
 }
 
 // Passage es un fragmento recuperado por una búsqueda, con lo necesario para

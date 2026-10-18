@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -333,7 +334,7 @@ func (s *Service) retrieve(ctx context.Context, key string, q Query) ([]rag.Pass
 		return nil, nil, "", err
 	}
 
-	passages, err := s.retriever.Search(ctx, q.Question, rag.SearchOptions{Collection: q.Collection, TopK: q.TopK})
+	passages, err := s.retriever.Search(ctx, q.Question, rag.SearchOptions{Collection: q.Collection, TopK: q.TopK, Filters: q.Filters})
 	switch {
 	case err == nil:
 	case errors.Is(err, rag.ErrInvalidInput):
@@ -406,10 +407,18 @@ func (s *Service) reserve(ctx context.Context, now time.Time) error {
 }
 
 // cacheKey identifica una consulta sin distinguir mayúsculas ni espacios de
-// más: "¿Qué pozos?" y "  ¿qué  pozos? " son la misma pregunta.
+// más: "¿Qué pozos?" y "  ¿qué  pozos? " son la misma pregunta. Los filtros
+// entran serializados, que ordena sus claves: la misma pregunta con otros
+// filtros es otra consulta.
 func cacheKey(q Query) string {
 	question := strings.Join(strings.Fields(strings.ToLower(q.Question)), " ")
-	return fmt.Sprintf("%s\x00%s\x00%d", question, q.Collection, q.TopK)
+	filters := ""
+	if len(q.Filters) > 0 {
+		// Normalize ya validó que los valores son simples: no falla.
+		raw, _ := json.Marshal(q.Filters)
+		filters = string(raw)
+	}
+	return fmt.Sprintf("%s\x00%s\x00%d\x00%s", question, q.Collection, q.TopK, filters)
 }
 
 // degradedText es la respuesta cuando ningún modelo redactó una: dice qué se

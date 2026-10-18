@@ -82,6 +82,16 @@ func (q Query) Normalize() (Query, error) {
 		return Query{}, fmt.Errorf("%w: top_k debe estar entre 1 y %d", ErrInvalidInput, maxTopK)
 	}
 
+	// Un filtro compara valores simples: un objeto o una lista no tienen un
+	// significado claro como "el documento debe tener este metadato".
+	for key, value := range q.Filters {
+		switch value.(type) {
+		case string, float64, bool, int:
+		default:
+			return Query{}, fmt.Errorf("%w: el filtro %q debe ser texto, número o booleano", ErrInvalidInput, key)
+		}
+	}
+
 	switch q.Trace {
 	case "":
 		q.Trace = TraceSummary

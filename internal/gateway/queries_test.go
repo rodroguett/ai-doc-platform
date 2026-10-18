@@ -119,6 +119,7 @@ func TestCreateQueryRejectsInvalidInput(t *testing.T) {
 		"pregunta corta":    `{"question": "  a "}`,
 		"top_k excesivo":    `{"question": "¿Qué pozos?", "top_k": 21}`,
 		"traza desconocida": `{"question": "¿Qué pozos?", "trace": "debug"}`,
+		"filtro con objeto": `{"question": "¿Qué pozos?", "filters": {"tipo": {"es": "RCA"}}}`,
 		"JSON mal formado":  `{"question":`,
 	} {
 		t.Run(name, func(t *testing.T) {

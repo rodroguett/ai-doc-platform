@@ -112,6 +112,10 @@ contra el código y contra `gh issue list`.
   ordenar, los pasajes de un documento con metadato `tipo: RCA` suman 0,03
   a su similitud (ADR-0015); el puntaje informado y el piso para citar no
   la incluyen. Una RCA subida sin `tipo` pierde esa prioridad.
+- `filters` en una consulta restringe la búsqueda por contención de los
+  metadatos (`d.metadata @> filters`): `{"tipo": "RCA"}` busca solo en la
+  RCA. Solo valores de texto, número o booleano; la caché los incluye en
+  su clave.
 - Antes de convertir una pregunta en vector, `rag` agrega a cada sigla del
   SEIA su nombre completo (`internal/rag/acronyms.go`). Solo afecta la
   búsqueda: la pregunta que ve el modelo no cambia.
