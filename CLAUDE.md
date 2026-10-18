@@ -35,6 +35,11 @@ contra el código y contra `gh issue list`.
 - `/health` indica que el proceso está vivo y `/ready` verifica las
   dependencias (hoy, la base de datos). No usar rutas terminadas en `z`:
   Cloud Run las intercepta.
+- La página de demo está en `/demo` (`internal/gateway/demo.html`), y `/`
+  redirige ahí. Usa `POST /v1/queries` como cualquier cliente. No tiene
+  recursos externos, y su Content-Security-Policy solo admite su script por
+  el hash, que se calcula al arrancar: editar el script no exige tocar la
+  política. Nunca insertar texto de la API como HTML.
 - El contrato se sirve en `/openapi.yaml` y Swagger UI en `/docs`, ambos
   fuera de `/v1`. Swagger UI se carga desde un CDN con versión y hash de
   integridad fijos en `internal/gateway/swagger.html`.

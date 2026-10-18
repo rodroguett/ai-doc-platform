@@ -48,8 +48,11 @@ frecuencia.
 | `orchestrator` | Responde consultas: recupera los pasajes, descarta los que no alcanzan un puntaje mínimo, pide la redacción a un modelo y verifica que cada cita apunte a un pasaje real y que las cifras de cada oración estén en lo que cita, avisando si no (ADR-0014); las marcas puestas en una frase que solo dice que los pasajes no contienen algo no cuentan como cita. Si el modelo falla o no cita, responde en modo degradado. Caché de preguntas repetidas y tope diario. Cada consulta deja en Postgres su consumo de tokens y su costo estimado a tarifa de lista, sin la pregunta (ADR-0013) |
 | `llmgw` | Embeddings y generación con Gemini detrás de interfaces que ocultan al proveedor. Respaldo entre dos modelos de generación; reintentos y ritmo regulado para los embeddings. Estima el costo de cada generación con la tarifa de lista del modelo |
 
-Demo: **https://gateway-w46qaen3gq-uc.a.run.app/docs** — la API es explorable y
-ejecutable desde el navegador.
+Demo: **https://gateway-w46qaen3gq-uc.a.run.app/demo** — pregunta desde el
+navegador y revisa cada cita. Una pregunta se puede compartir como enlace:
+[`/demo?q=…`](https://gateway-w46qaen3gq-uc.a.run.app/demo?q=%C2%BFQu%C3%A9%20pidi%C3%B3%20el%20SEA%20sobre%20la%20contrataci%C3%B3n%20de%20mano%20de%20obra%20local%20y%20c%C3%B3mo%20qued%C3%B3%20en%20la%20RCA%3F).
+La API es explorable y ejecutable en
+[`/docs`](https://gateway-w46qaen3gq-uc.a.run.app/docs).
 
 ```bash
 curl -s https://gateway-w46qaen3gq-uc.a.run.app/v1/queries \

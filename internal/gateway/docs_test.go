@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,10 +67,47 @@ func TestDocsAreOutsideVersionedPath(t *testing.T) {
 	}
 }
 
-func TestRootRedirectsToDocs(t *testing.T) {
+func TestRootRedirectsToDemo(t *testing.T) {
 	rec := get(t, "/")
 
-	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/docs" {
-		t.Errorf("got %d → %q, want 302 → /docs", rec.Code, rec.Header().Get("Location"))
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/demo" {
+		t.Errorf("got %d → %q, want 302 → /demo", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+func TestDemoPage(t *testing.T) {
+	rec := get(t, "/demo")
+
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("got status %d y content-type %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`fetch("/v1/queries"`, "Gemini, de Google", `href="/docs"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("la página no contiene %q", want)
+		}
+	}
+	// Sin recursos externos: no hay nada que fijar con un hash.
+	if strings.Contains(body, "<script src") || strings.Contains(body, "<link") {
+		t.Error("la página carga recursos externos")
+	}
+	// El texto que llega de la API nunca se interpreta como HTML.
+	if strings.Contains(body, "innerHTML") {
+		t.Error("la página usa innerHTML")
+	}
+}
+
+// La política solo permite el script de la página, por su hash: si alguien
+// edita el script sin que el hash cambie con él, el navegador no lo ejecuta.
+func TestDemoPageContentSecurityPolicy(t *testing.T) {
+	rec := get(t, "/demo")
+
+	policy := rec.Header().Get("Content-Security-Policy")
+	_, rest, _ := strings.Cut(rec.Body.String(), "<script>")
+	script, _, _ := strings.Cut(rest, "</script>")
+	sum := sha256.Sum256([]byte(script))
+	want := "script-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	if !strings.Contains(policy, want) || !strings.Contains(policy, "connect-src 'self'") || !strings.Contains(policy, "default-src 'none'") {
+		t.Errorf("got política %q, want que incluya %q", policy, want)
 	}
 }
