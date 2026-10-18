@@ -1,10 +1,10 @@
 # Evaluación
 
-El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene 23 preguntas sobre la RCA de prueba, cada una con las secciones que la responden, o sin ninguna si el documento no la responde. Cada pregunta mide un comportamiento distinto; no hay preguntas de relleno.
+El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene 26 preguntas sobre un corpus de tres documentos del mismo proyecto —la RCA y los dos ICSARA que la precedieron—, cada una con las secciones que la responden, o sin ninguna si el documento no la responde. Cada pregunta mide un comportamiento distinto; no hay preguntas de relleno.
 
 | Origen | Preguntas | Sesgo |
 |---|---|---|
-| `autor` | 17: siete verificadas a mano en producción, dos variantes de redacción de las enumeraciones, cuatro con una premisa numérica falsa y cuatro que el documento no responde | Las escribió quien construyó el sistema, conociendo el documento |
+| `autor` | 20: siete verificadas a mano en producción, dos variantes de redacción de las enumeraciones, cuatro con una premisa numérica falsa, tres que cruzan documentos y cuatro que el corpus no responde | Las escribió quien construyó el sistema, conociendo el documento |
 | `asistente` | 6 de revisión crítica: contradicciones, juicios jurídicos, premisas falsas | Las generó un asistente de IA a pedido del dueño del proyecto, que eligió las que aportaban |
 
 ## Cómo se corre
@@ -21,7 +21,26 @@ Consume cuota del proveedor de embeddings, y con `-generate` también de generac
 
 El documento se sube con los metadatos que tiene en producción (`metadata` en el conjunto), porque su nombre llega al modelo junto a cada pasaje. Con otro nombre las respuestas cambian: subido como `rca-tres-valles.pdf`, la evaluación no reproducía un error que en producción ocurrió en tres de cuatro consultas.
 
-## Resultado vigente: tras #75
+## Resultado vigente: el corpus pasa a tres documentos (#83)
+
+El corpus de la evaluación suma los dos ICSARA del proyecto (168 y 119 fragmentos), con los mismos metadatos que tendrán en producción, y el conjunto suma tres preguntas que cruzan documentos. Una sección esperada puede nombrar su documento: `icsara:Capítulo V 1.11`.
+
+**Las preguntas entre documentos salen bien.** Las tres recuperan lo esperado entre los primeros cinco pasajes, y sus respuestas atribuyen cada parte a su documento: la de la mano de obra local dice qué pidió el SEA en el ICSARA y qué quedó en la RCA; la del afloramiento de aguas dice que esa exigencia la pidió el SEA y que la RCA no la incorporó, y da en cambio el aviso de 24 horas que la RCA sí exige ante emergencias.
+
+**Las preguntas sobre la RCA empeoran.** Los ICSARA tratan los mismos temas que la RCA, porque son las preguntas que la RCA terminó respondiendo, y ganan la búsqueda:
+
+| Medida | Solo la RCA (tras #75) | Tres documentos |
+|---|---|---|
+| Preguntas con todo lo esperado entre los primeros 5 | 17 de 19 | 15 de 22 |
+| Grupos de secciones entre los primeros 5 | 34 de 36 | 30 de 41 |
+
+- `compromisos-voluntarios` recupera 1 de los 4 compromisos de la RCA entre los primeros 5: el capítulo VI del ICSARA, que pide aclaraciones sobre ellos, ocupa el resto. La respuesta queda incompleta y mezcla los compromisos con las solicitudes.
+- `estanque-agua-tratada` no recupera la 6.2.1 ni entre los primeros 10, y la respuesta habla de la fosa séptica del ICSARA.
+- `limites-genericos` recibió un aviso falso por la cifra 8.2, en una cláusula que niega con "Tampoco mencionan…", una forma que la verificación no reconoce.
+
+Una medición sin generación, ordenando los mismos resultados con una ventaja para la RCA, muestra que con 0,03 se recuperan 19 de 22 preguntas completas sin perder las que cruzan documentos. Es lo que decide #85; hasta entonces, los ICSARA no se ingieren en producción.
+
+## Tras #75
 
 **Las cifras de cada respuesta se verifican contra lo que cita su oración** (ADR-0014). Una cifra que no está en los pasajes citados no descarta la respuesta: se entrega con un aviso, y la traza la lista. El informe cuenta las respuestas con avisos.
 
