@@ -64,6 +64,11 @@ contra el código y contra `gh issue list`.
   de cada subsección, se antepone al texto del embedding y se le muestra al
   modelo. Cambiar el fragmentador no altera lo ya ingerido: hay que borrar
   y volver a subir el documento.
+- El fragmentador también reconoce documentos por capítulos con numeración
+  romana, como los ICSARA: cada capítulo es una parte ("Capítulo V 1.3"),
+  su título va en el contexto de cada fragmento, y solo el segundo nivel
+  abre una subsección ("1.2" incluye sus "1.2.1"…). Con la RCA no cambia
+  nada. Los dos ICSARA del proyecto están en `internal/rag/testdata`.
 - `internal/llmgw` genera embeddings con Gemini (`internal/llmgw/gemini`),
   por HTTP y sin SDK. Reintenta fallas transitorias, regula el ritmo a
   24.000 tokens por minuto y cuenta su propio consumo. `rag` lo consume a

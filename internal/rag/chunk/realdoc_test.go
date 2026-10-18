@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,7 +18,13 @@ import (
 // SEA (ver testdata/README.md).
 func realDocument(t *testing.T) ([]rag.PageText, []rag.Chunk) {
 	t.Helper()
-	data, err := os.ReadFile("../testdata/rca-tres-valles.pdf")
+	return testDocument(t, "rca-tres-valles.pdf")
+}
+
+// testDocument extrae y fragmenta un documento de testdata.
+func testDocument(t *testing.T, name string) ([]rag.PageText, []rag.Chunk) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "testdata", filepath.Base(name)))
 	if err != nil {
 		t.Fatalf("leer el documento de prueba: %v", err)
 	}

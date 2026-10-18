@@ -2,6 +2,7 @@ package chunk_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -367,5 +368,38 @@ func TestSplitEmptyInput(t *testing.T) {
 	}
 	if chunks := chunk.Split([]rag.PageText{page(1, " ", "")}); len(chunks) != 0 {
 		t.Errorf("una página en blanco produjo %d fragmentos", len(chunks))
+	}
+}
+
+// Un capítulo con numeración romana abre una parte; una línea que empieza
+// igual pero no es un título en mayúsculas, no.
+func TestSplitRecognizesChapters(t *testing.T) {
+	pages := []rag.PageText{{Number: 1, Text: strings.Join([]string{
+		"I. DESCRIPCIÓN DE PROYECTO.",
+		"1. Respecto de la localización del proyecto:",
+		"1.1. Aclarar la superficie.",
+		"1.1.1. Adjuntar tabla.",
+		"II. Que, el proyecto se ubica en la comuna.",
+		"IV. ANTECEDENTES DEL ARTÍCULO 11 DE LA LEY.",
+		"1. Respecto del área de influencia.",
+	}, "\n")}}
+
+	chunks := chunk.Split(pages)
+
+	var sections []string
+	for _, c := range chunks {
+		sections = append(sections, c.Section)
+	}
+	want := []string{"Capítulo I 1.1", "Capítulo IV 1"}
+	if !slices.Equal(sections, want) {
+		t.Fatalf("got secciones %q, want %q", sections, want)
+	}
+	// El inciso de tercer nivel y la línea que no es capítulo quedan en la
+	// solicitud 1.1.
+	if !strings.Contains(chunks[0].Text, "1.1.1. Adjuntar tabla.") || !strings.Contains(chunks[0].Text, "II. Que, el proyecto") {
+		t.Errorf("got texto %q", chunks[0].Text)
+	}
+	if chunks[0].Context != "Capítulo I. Descripción de proyecto\n1. Respecto de la localización del proyecto:" {
+		t.Errorf("got contexto %q", chunks[0].Context)
 	}
 }

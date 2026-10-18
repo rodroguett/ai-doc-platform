@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/rodroguett/ai-doc-platform/internal/rag"
 )
@@ -35,6 +37,13 @@ const minPagesForBoilerplate = 4
 var (
 	// Una parte del documento: "VISTOS:", "CONSIDERANDO:", "RESUELVO:".
 	partPattern = regexp.MustCompile(`^(VISTOS?|CONSIDERANDOS?|RESUELVO|RESUELVE|SE RESUELVE)\s*:?$`)
+
+	// Un capítulo con numeración romana y título en mayúsculas, como los de
+	// un ICSARA: "V. PLAN DE PREVENCIÓN DE CONTINGENCIAS Y DE EMERGENCIAS.".
+	// Cumple el mismo papel que una parte: sus ítems se numeran desde 1. El
+	// título puede ocupar varias líneas y nombrar un artículo ("DEL ARTÍCULO
+	// 11 DE LA LEY"), pero empieza y termina en una letra mayúscula.
+	chapterPattern = regexp.MustCompile(`^([IVX]{1,5})\.\s+(\p{Lu}[\p{Lu}\d\s,;()°]*\p{Lu})\.?$`)
 
 	// Un ítem de primer nivel: "10. Que, el proyecto…".
 	itemPattern = regexp.MustCompile(`^(\d{1,3})[.°]\s+(\S.*)$`)
@@ -139,7 +148,7 @@ func logicalLines(pages []rag.PageText) []line {
 }
 
 func opensSection(s string) bool {
-	return partPattern.MatchString(s) || itemPattern.MatchString(s) || subsectionPattern.MatchString(s)
+	return partPattern.MatchString(s) || chapterPattern.MatchString(s) || itemPattern.MatchString(s) || subsectionPattern.MatchString(s)
 }
 
 // repeatedLines devuelve las líneas que se repiten en la mayoría de las
@@ -172,6 +181,12 @@ type builder struct {
 	chunks []rag.Chunk
 
 	part string // "Considerando", o vacía antes de la primera parte
+
+	// chapter es el título del capítulo en curso, en un documento dividido
+	// en capítulos: "Plan de prevención de contingencias y de emergencias".
+	// Acompaña a cada fragmento del capítulo como contexto.
+	chapter string
+
 	item int    // último ítem de primer nivel aceptado en la parte
 	sub  string // subsección en curso, por ejemplo "10.1"
 
@@ -191,6 +206,14 @@ func (b *builder) add(l line) {
 		b.part = partNames[strings.TrimSpace(strings.TrimSuffix(l.text, ":"))]
 		b.item, b.sub, b.heading, b.context = 0, "", "", ""
 		// El nombre de la parte no lleva contenido propio: no se guarda.
+		return
+
+	case chapterPattern.MatchString(l.text):
+		b.flush()
+		m := chapterPattern.FindStringSubmatch(l.text)
+		b.part, b.chapter = "Capítulo "+m[1], sentenceCase(m[2])
+		b.item, b.sub, b.heading, b.context = 0, "", "", ""
+		// El título no se guarda como fragmento: va como contexto.
 		return
 
 	case b.startsItem(l.text):
@@ -244,12 +267,21 @@ func (b *builder) startsItem(text string) bool {
 
 // startsSubsection indica si la línea abre una subsección del ítem en curso:
 // su número debe empezar por el del ítem.
+//
+// En un documento por capítulos, solo el segundo nivel abre una subsección:
+// "1.2" la abre y "1.2.3" queda dentro de ella. Un ICSARA divide cada
+// solicitud en incisos de una o dos líneas; como fragmentos propios
+// gastarían una petición de embeddings cada uno y se buscarían sin la
+// solicitud a la que pertenecen.
 func (b *builder) startsSubsection(text string) bool {
 	if b.part == "" || b.item == 0 {
 		return false
 	}
 	m := subsectionPattern.FindStringSubmatch(text)
-	return m != nil && strings.HasPrefix(m[1], strconv.Itoa(b.item)+".")
+	if m == nil || !strings.HasPrefix(m[1], strconv.Itoa(b.item)+".") {
+		return false
+	}
+	return b.chapter == "" || strings.Count(m[1], ".") == 1
 }
 
 // introIsContext indica si lo acumulado para el ítem, antes de su primera
@@ -300,6 +332,9 @@ func (b *builder) flush() {
 		context := ""
 		if b.sub != "" {
 			context = b.context
+		}
+		if b.chapter != "" {
+			context = strings.TrimSpace(b.part + ". " + b.chapter + "\n" + context)
 		}
 		b.chunks = append(b.chunks, rag.Chunk{
 			Section:   section,
@@ -359,3 +394,11 @@ func splitLong(l line) []line {
 }
 
 func isRuneStart(b byte) bool { return b&0xC0 != 0x80 }
+
+// sentenceCase pasa un título en mayúsculas a minúsculas, salvo la primera
+// letra: "PLAN DE PREVENCIÓN" pasa a "Plan de prevención".
+func sentenceCase(s string) string {
+	s = strings.Join(strings.Fields(strings.ToLower(s)), " ")
+	r, size := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[size:]
+}
