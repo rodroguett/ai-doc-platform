@@ -1,10 +1,10 @@
 # Evaluación
 
-El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene 19 preguntas sobre la RCA de prueba, cada una con las secciones que la responden, o sin ninguna si el documento no la responde. Cada pregunta mide un comportamiento distinto; no hay preguntas de relleno.
+El conjunto [`eval/rca-tres-valles.json`](../../eval/rca-tres-valles.json) tiene 23 preguntas sobre la RCA de prueba, cada una con las secciones que la responden, o sin ninguna si el documento no la responde. Cada pregunta mide un comportamiento distinto; no hay preguntas de relleno.
 
 | Origen | Preguntas | Sesgo |
 |---|---|---|
-| `autor` | 13: siete verificadas a mano en producción, dos variantes de redacción de las enumeraciones, y cuatro que el documento no responde | Las escribió quien construyó el sistema, conociendo el documento |
+| `autor` | 17: siete verificadas a mano en producción, dos variantes de redacción de las enumeraciones, cuatro con una premisa numérica falsa y cuatro que el documento no responde | Las escribió quien construyó el sistema, conociendo el documento |
 | `asistente` | 6 de revisión crítica: contradicciones, juicios jurídicos, premisas falsas | Las generó un asistente de IA a pedido del dueño del proyecto, que eligió las que aportaban |
 
 ## Cómo se corre
@@ -21,7 +21,33 @@ Consume cuota del proveedor de embeddings, y con `-generate` también de generac
 
 El documento se sube con los metadatos que tiene en producción (`metadata` en el conjunto), porque su nombre llega al modelo junto a cada pasaje. Con otro nombre las respuestas cambian: subido como `rca-tres-valles.pdf`, la evaluación no reproducía un error que en producción ocurrió en tres de cuatro consultas.
 
-## Resultado vigente: tras #62
+## Resultado vigente: tras #75
+
+**Las cifras de cada respuesta se verifican contra lo que cita su oración** (ADR-0014). Una cifra que no está en los pasajes citados no descarta la respuesta: se entrega con un aviso, y la traza la lista. El informe cuenta las respuestas con avisos.
+
+Antes de construirla se midió el problema sobre las 116 respuestas distintas guardadas desde #51: 238 cifras en oraciones con cita, ninguna inventada. La verificación final no da ningún aviso sobre esas respuestas; una comparación ingenua daba dos falsos positivos, y en producción apareció un tercero ("…34 m3, sin mencionar una capacidad de 4 m3 ni hacer referencia a un numeral 4.3.2"), corregido en #79.
+
+Para medir el caso que la verificación busca, el conjunto suma cuatro preguntas con una premisa numérica falsa:
+
+| Pregunta | Cifra falsa | Verdadera | Respuesta |
+|---|---|---|---|
+| `cifra-falsa-informes` | cada 3 meses | cada 6 meses | Correcta: "cada 6 meses, no cada 3 meses" |
+| `cifra-falsa-mp10` | 100 ug/m3N | 150 ug/m3N | Correcta: niega los 100 y da los 150 |
+| `cifra-falsa-vida-util` | 15 años | 11 años | Correcta: niega los 15 y da los 11, con las fechas de operación y cierre |
+| `cifra-falsa-inversion` | USD 300 millones | USD 30 millones | Correcta: niega los 300 y da los 30 |
+
+**Respuestas redactadas con cifras sin respaldo en sus citas: 0 de 18.** El modelo no repitió ninguna cifra falsa, así que la verificación no tuvo nada que detectar. Sigue sin haber un error real medido que la verificación haya atrapado: es un seguro, con su costo de falsos positivos medido en cero sobre 134 respuestas.
+
+### Lo que la medición mostró que no detecta
+
+- **Cifras chicas y comunes.** La respuesta de los informes dice "no cada 3 meses" citando la 10.1 y la 8.1, y las dos contienen un "3" suelto en otro contexto. Si la respuesta hubiera afirmado los 3 meses, la verificación no habría avisado. En pasajes largos, una cifra de uno o dos dígitos suele aparecer por casualidad.
+- **Oraciones sin marcas.** La respuesta de la vida útil da las fechas de inicio y término de la operación (enero de 2027, diciembre de 2037) en una oración sin cita. Son correctas, pero están en pasajes que la respuesta no cita, y una oración sin marcas no se verifica.
+
+### Variación de esta corrida
+
+`limites-genericos`, correcta en las corridas anteriores, terminó en "los pasajes no responden": el modelo escribió solo que los pasajes no explican el porqué, sin agregar lo que sí dicen, y la respuesta quedó sin citas. Es un error seguro y no tiene relación con la verificación de cifras, que actúa después. El modelo principal también respondió 429 cinco veces por el límite por minuto de la clave de evaluación, y el de respaldo redactó esas respuestas.
+
+## Tras #62
 
 **Las siglas de la pregunta se buscan también por su nombre completo.** Antes de convertir la pregunta en vector, "PAS" pasa a "PAS (Permisos Ambientales Sectoriales)", con un glosario de nueve siglas del SEIA tomadas de las definiciones de la propia RCA. La pregunta que ve el modelo no cambia, y el prompt no crece.
 

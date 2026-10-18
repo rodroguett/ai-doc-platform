@@ -109,7 +109,7 @@ contra el código y contra `gh issue list`.
 - En producción está ingerida la RCA "Continuidad Operacional Minera Tres
   Valles" (colección `rca`). Con el fragmentador actual son 159 fragmentos.
 - La calidad se mide con `make eval` contra `eval/rca-tres-valles.json`
-  (19 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
+  (23 preguntas). Resultado y lectura en `docs/eval/README.md`: el puntaje
   mínimo no separa las preguntas del dominio sin respuesta; lo que las
   detiene es la generación. Cualquier cambio a la búsqueda, al prompt o al
   umbral se mide contra el resultado vigente, y el informe se corrige a

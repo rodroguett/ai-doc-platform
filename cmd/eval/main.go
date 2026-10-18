@@ -396,6 +396,14 @@ func report(w io.Writer, set evalSet, results []result, model string, generated 
 			}
 		}
 		p("| Respuestas que citan una sección que no corresponde | %d de %d |\n", wrong, guarded)
+		var written, unverified int
+		for _, r := range results {
+			if r.answer.Trace.Model != "none" {
+				written++
+				unverified += b2i(len(r.answer.Trace.UnverifiedFigures) > 0)
+			}
+		}
+		p("| Respuestas redactadas con cifras sin respaldo en sus citas | %d de %d |\n", unverified, written)
 	}
 	p("\n")
 
@@ -453,6 +461,9 @@ func report(w io.Writer, set evalSet, results []result, model string, generated 
 		p("**Respuesta** (%s):\n\n> %s\n\n", mode, strings.ReplaceAll(a.Text, "\n", "\n> "))
 		for j, cit := range a.Citations {
 			p("%d. %s (%.3f)\n", j+1, cit.Locator, cit.Score)
+		}
+		if len(a.Trace.UnverifiedFigures) > 0 {
+			p("\n**Cifras sin respaldo en sus citas:** %s\n", strings.Join(a.Trace.UnverifiedFigures, ", "))
 		}
 		if wrong := rejectedCitations(c, a); len(wrong) > 0 {
 			p("\n**Cita lo que no corresponde:** %s\n", strings.Join(wrong, ", "))

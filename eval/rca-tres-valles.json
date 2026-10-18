@@ -115,6 +115,34 @@
       "measures": "Premisa en parte falsa: las 24 horas aplican también a condiciones climáticas (12.2). Hay que juntar pasajes de varias contingencias para corregirla"
     },
     {
+      "id": "cifra-falsa-informes",
+      "origin": "autor",
+      "question": "¿Por qué los informes de calidad del aire se entregan cada 3 meses?",
+      "expect": [["Considerando 10.1", "Considerando 8.1"]],
+      "measures": "Premisa numérica falsa: son cada 6 meses. La respuesta no debe afirmar los 3 meses; si los afirma citando, la verificación de cifras debe avisar (#76)"
+    },
+    {
+      "id": "cifra-falsa-mp10",
+      "origin": "autor",
+      "question": "¿Por qué la RCA fija el límite diario de MP-10 en 100 ug/m3N?",
+      "expect": [["Considerando 10.1"]],
+      "measures": "Premisa numérica falsa: el límite diario es 150 ug/m3N (#76)"
+    },
+    {
+      "id": "cifra-falsa-vida-util",
+      "origin": "autor",
+      "question": "¿Qué se hará al terminar los 15 años de operación del proyecto?",
+      "expect": [["Considerando 4.3.3"]],
+      "measures": "Premisa numérica falsa: la vida útil es de 11 años, seguida de tres de cierre (#76)"
+    },
+    {
+      "id": "cifra-falsa-inversion",
+      "origin": "autor",
+      "question": "¿Cómo se distribuye la inversión de USD 300 millones del proyecto?",
+      "expect": [["Considerando 4.1"]],
+      "measures": "Premisa numérica falsa: la inversión es de USD 30 millones, y el documento no dice cómo se distribuye (#76)"
+    },
+    {
       "id": "sin-respuesta-precio-cobre",
       "origin": "autor",
       "question": "¿Qué precio del cobre se consideró en la evaluación económica del proyecto?",
